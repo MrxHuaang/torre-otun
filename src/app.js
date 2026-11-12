@@ -393,7 +393,7 @@ const state = {
   shift: 0.2,   // la torre se corre a un lado para no quedar debajo del texto
 };
 const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null, floor: null };
-const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, ended: false, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
+const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
 const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const view = { w: 1, h: 1 };
 
@@ -728,6 +728,8 @@ $$('[data-scroll]').forEach((a) =>
         lenis.start();
         $$('.block').forEach((el) => io.observe(el));
       });
+      // La versión realista se adelanta en segundo plano: al abrir el recorrido ya está lista.
+      gsap.delayedCall(3, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
     },
   });
 }
@@ -846,7 +848,13 @@ async function startTour() {
   walk.busy = true;
   if (ex.on) await new Promise((res) => exitExplore(res));
   lenis.stop();
-  await Promise.all([gsap.to(walk, { veil: 1, duration: 0.45, ease: 'power2.in' }), apt.load.catch(() => null)]);
+  // El recorrido abre en versión realista. Si no alcanza a llegar en unos segundos (conexión lenta),
+  // abre en tinta, que ya está cargada, y el botón Realista queda a mano.
+  const real = !walk.wantReal ? Promise.resolve(false) : Promise.race([
+    apt.loadReal(renderer, MOBILE).then(() => true, () => false),
+    new Promise((res) => setTimeout(() => res(false), 7000)),
+  ]);
+  const [, , gotReal] = await Promise.all([gsap.to(walk, { veil: 1, duration: 0.45, ease: 'power2.in' }), apt.load.catch(() => null), real]);
   if (!apt.ready) {
     notify('No se pudo cargar el apartamento. Revisa tu conexión e inténtalo de nuevo.');
     gsap.to(walk, { veil: 0, duration: 0.5 });
@@ -856,6 +864,7 @@ async function startTour() {
   }
   if (!walk.shadows) { walk.shadows = true; renderer.shadowMap.needsUpdate = true; }   // la sombra del sol se calcula una sola vez
   Object.assign(walk, { on: true, t: 0, st: 0, key: -1, lookX: 0, lookY: 0, dragX: 0, dragY: 0 });
+  markStyle(gotReal && apt.real.ready);
   document.body.classList.add('inside');
   tourEl.setAttribute('aria-hidden', 'false');
   setPlaying(!reduceMotion);
@@ -879,6 +888,11 @@ async function endTour() {
 
 // Tinta o realista: mismo recorrido, dos formas de verlo. La realista se descarga la primera vez que se pide.
 const modeBtns = $$('.tour-mode button');
+function markStyle(real) {
+  walk.real = real;
+  document.body.classList.toggle('real', real);
+  modeBtns.forEach((b) => { const on = (b.dataset.style === 'real') === real; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+}
 async function setStyle(real) {
   if (!walk.on || real === walk.real || walk.busy) return;
   const btn = modeBtns.find((b) => (b.dataset.style === 'real') === real);
@@ -896,10 +910,9 @@ async function setStyle(real) {
     if (!walk.on) return;
   }
   walk.busy = true;
+  walk.wantReal = real;                                  // la elección se recuerda para la próxima vez que entre
   await gsap.to(walk, { veil: 1, duration: 0.3, ease: 'power2.in' });
-  walk.real = real;
-  document.body.classList.toggle('real', real);
-  modeBtns.forEach((b) => { const on = b === btn; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  markStyle(real);
   await gsap.to(walk, { veil: 0, duration: 0.4, ease: 'power2.out' });
   walk.busy = false;
 }
