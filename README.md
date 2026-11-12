@@ -1,8 +1,10 @@
+<img src="docs/logo.svg" alt="Marca de Torre Otún: torre escalonada, sol naciente y río" width="96" align="right" />
+
 # Torre Otún
 
-Sala de ventas viva para un edificio que todavía no existe: recórrelo por fuera, ábrelo hasta el esqueleto, elige apartamento y camínalo por dentro. Todo dibujado como un cómic a tinta.
+Sala de ventas viva para un edificio que todavía no existe: recórrelo por fuera, ábrelo hasta el esqueleto, elige apartamento y camínalo por dentro. Todo dibujado a tinta, como lámina de arquitectura.
 
-**[DEMO_URL](https://DEMO_URL)**
+**[torre-otun.vercel.app](https://torre-otun.vercel.app)**
 
 ![Portada: emblema, título animado y pinceladas que fluyen](docs/portada.jpg)
 
@@ -17,7 +19,7 @@ Sala de ventas viva para un edificio que todavía no existe: recórrelo por fuer
 - **Portada que responde.** El emblema se dibuja al ritmo real de la carga. Después el título aparece por franjas mientras cada letra sube, sobre pinceladas que fluyen en tres profundidades. Título, letras, luz y botón siguen al cursor.
 - **Torre en 3D dibujada en vivo.** Un pase de tinta convierte la escena de three.js en grabado: contornos por profundidad y normales, aguada gris, trama solo en sombra fuerte y un único color plano.
 - **Se puede tocar.** Arrastra la torre para girarla. Toca un piso y se encienden sus ventanas. Al pasar el cursor, cada piso dice cuántos apartamentos tiene libres.
-- **Estructura a la vista.** La torre se desarma piso a piso de arriba hacia abajo y deja ver columnas, núcleo de muros, disipadores y pilotes, con notas a mano.
+- **Estructura a la vista.** La torre se desarma piso a piso de arriba hacia abajo y deja ver columnas, núcleo de muros, disipadores y pilotes, con anotaciones técnicas.
 - **Disponibilidad y cotizador.** Modo exploración con cada apartamento pintado por estado, ficha con plano, precio y un cotizador de cuota inicial y plazo.
 - **Recorrido interior continuo.** 760 cuadros pre-renderizados en Blender: entras por la puerta, cocina, sala, balcón, pasillo, baño, alcobas. El scroll decide el cuadro y un minimapa marca dónde vas.
 - **Barrio con sentido.** Casas con techo a dos aguas, edificios bajos con locales, calles, árboles y personas a escala.
@@ -53,7 +55,7 @@ blender --background --factory-startup --python blender/torre.py -- public/model
 blender --background --factory-startup --python blender/apartamento.py -- ink CYCLES 0 1024 32 public/tour 0 760
 ```
 
-Vite, three.js, GSAP y Lenis, sin framework. Tipografías [Limelight](https://fonts.google.com/specimen/Limelight), [Syne](https://fonts.google.com/specimen/Syne), [Jost](https://fonts.google.com/specimen/Jost) y [Caveat](https://fonts.google.com/specimen/Caveat).
+Vite, three.js, GSAP y Lenis, sin framework. Tipografías [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) y [Jost](https://fonts.google.com/specimen/Jost).
 
 Proyecto ficticio. Cifras, tiempos y precios son ilustrativos.
 

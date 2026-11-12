@@ -17,3 +17,5 @@ public/tour/_tmp/
 
 .impeccable/
 blender/*.txt
+
+.vercel

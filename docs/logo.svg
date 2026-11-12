@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="160" height="160" role="img" aria-label="Torre Otún">
+  <rect width="200" height="200" rx="24" fill="#111111"/>
+  <defs><clipPath id="c"><circle cx="100" cy="100" r="78"/></clipPath></defs>
+  <g fill="none" stroke="#f6f5f1" stroke-linecap="round" stroke-linejoin="round">
+    <g clip-path="url(#c)" stroke-width="1.4">
+      <path d="M100 124L22 124M100 124L26 96M100 124L36 70M100 124L52 48M100 124L74 32M100 124L100 22M100 124L126 32M100 124L148 48M100 124L164 70M100 124L174 96M100 124L178 124"/>
+    </g>
+    <path d="M30 124h140" stroke-width="2.4"/>
+    <path d="M56 136h88M70 147h60M84 158h32" stroke-width="2"/>
+    <circle cx="100" cy="100" r="78" stroke-width="2.6"/>
+  </g>
+  <path d="M80 124V112h6V66h4v-9h4v-9h4V30h4v18h4v9h4v9h4v46h6v12z" fill="#111111" stroke="#f6f5f1" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M86 78h28M86 90h28M86 102h28" fill="none" stroke="#f6f5f1" stroke-width="1.6"/>
+</svg>

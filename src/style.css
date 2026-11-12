@@ -583,3 +583,72 @@ body { font-weight: 400; }
 
 /* Contorno de las letras más sutil: volumen sin ensuciar */
 .gate-title .w i::before { -webkit-text-stroke: 1.4px rgba(246, 245, 241, 0.3); transform: translate(calc(var(--mx) * var(--d) * -1.2px - 4px), calc(var(--my) * var(--d) * -0.8px + 5px)); }
+
+
+/* ============================================================================
+   Tono sobrio: lámina de arquitectura, no historieta
+   ============================================================================ */
+:root { --display: 'Cormorant Garamond', 'Times New Roman', serif; --label: 'Jost', system-ui, sans-serif; --accent: #8c2f25; }
+.display { font-weight: 500; letter-spacing: -0.012em; line-height: 0.9; }
+.display.mid, .plate .display.mid { line-height: 0.96; text-transform: none; font-size: clamp(38px, min(4.4vw, 9vh), 72px); }
+.eyebrow, .btn, .top-note, .scroller a span, .legend, .tip, .rail button, .counts div span, .specs span, .price span, .quote label span, .quote dt, .obra div, .floor-tip b { font-weight: 500; letter-spacing: 0.2em; }
+.eyebrow { font-size: 11px; }
+
+/* Botones rectos y contenidos */
+.btn, .btn.ghost, .btn.small, .panel .btn, .panel .btn.ghost {
+  border-radius: 0; border-width: 1.5px; box-shadow: none; transform: none;
+  min-height: 50px; padding: 0 30px; font-size: 11.5px; font-weight: 500; letter-spacing: 0.22em;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
+}
+.btn::after { display: none; }
+.btn:hover:not(:disabled), .btn:focus-visible, .panel .btn:hover:not(:disabled) { background: var(--ink); color: var(--bg); border-color: var(--ink); transform: none; box-shadow: none; }
+.btn:active:not(:disabled) { transform: none; box-shadow: none; opacity: 0.85; }
+.btn.small { min-height: 42px; padding: 0 20px; font-size: 10.5px; box-shadow: none; }
+.block .btn:not(.ghost), .panel .btn:not(.ghost) { background: var(--ink); color: var(--bg); box-shadow: none; }
+.block .btn:not(.ghost):hover:not(:disabled), .panel .btn:not(.ghost):hover:not(:disabled) { background: var(--bg); color: var(--ink); box-shadow: none; }
+.row .btn:nth-child(2) { transform: none; }
+.brand { border-radius: 0; border-width: 1.5px; font-family: var(--display); font-weight: 600; font-size: 21px; letter-spacing: 0.04em; padding: 5px 12px 3px; }
+
+/* Placas: borde fino, sin sombra dura ni inclinación */
+.plate, .plate.wide { border-width: 1.5px; box-shadow: none; padding: 30px 34px; }
+.plate.rv { transform: translateY(20px); }
+.in .plate.rv { transform: none; }
+.lead { border-left-width: 2px; font-size: clamp(17px, 1.3vw, 20px); }
+.frame { border-width: 1px; }
+.panel::before { border-width: 1px; }
+.minimap, .dock { border-width: 1.5px; box-shadow: none; }
+.scroller .thumb { width: 6px; height: 34px; margin: -17px 0 0 -3px; border: 0; box-shadow: none; }
+.scroller a span { font-size: 9.5px; }
+.facts b, .counts div b, .specs b, .price b, .quote dd.big, .obra b, .panel h3 { font-family: var(--display); font-weight: 600; }
+
+/* Anotaciones técnicas en vez de notas a mano */
+.note { font-family: var(--label); font-weight: 500; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; }
+.note span { padding: 5px 9px; border: 1px solid var(--ink); transform: none !important; }
+.note svg { stroke: var(--ink); stroke-width: 1.2; }
+.burst { display: none !important; }
+.spin-badge circle { stroke-width: 1.2; }
+.spin-badge text { font-weight: 500; font-size: 9.6px; letter-spacing: 0.16em; }
+.spin-badge .hand { stroke: var(--ink); stroke-width: 1.6; }
+.floor-tip { font-size: 12.5px; }
+
+/* Portada: misma animación, tipografía serena */
+.gate-title h2 { font-weight: 500; letter-spacing: -0.01em; line-height: 0.9; font-size: clamp(64px, 15vw, 250px); }
+.gate-title .pre, .gate-word { font-family: var(--label); font-weight: 500; letter-spacing: 0.42em; font-size: clamp(11px, 1vw, 14px); }
+.gate-word { font-family: var(--display); font-weight: 600; font-size: 21px; letter-spacing: 0.08em; }
+.gate-title .w i::before { -webkit-text-stroke: 1px rgba(246, 245, 241, 0.22); }
+.gate .btn, .gate.ready .btn { border-radius: 0; border: 1.5px solid #f6f5f1; background: transparent; color: #f6f5f1; box-shadow: none; padding: 0 46px; min-height: 54px; font-size: 12px;
+  transform: translate(var(--bx), var(--by)); transition: background 0.3s var(--ease), color 0.3s var(--ease); }
+.gate .btn:hover:not(:disabled), .gate .btn:focus-visible { background: #f6f5f1; color: #111; border-color: #f6f5f1; box-shadow: none; transform: translate(var(--bx), var(--by)); }
+.gate .btn:active:not(:disabled) { box-shadow: none; }
+
+
+/* Marca */
+.brand { display: inline-flex; align-items: center; gap: 10px; padding: 5px 14px 4px 9px; }
+.brand svg { width: 26px; height: 26px; flex: none; }
+.gate-emblem .ray { stroke-width: 1; }
+.gate-emblem .fl { stroke-width: 1.2; }
+
+
+/* La placa del recorrido solo existe estando dentro del apartamento */
+#interior .plate, #interior .plate.rv, .in #interior .plate.rv { opacity: 0; visibility: hidden; transform: translateY(16px); transition: opacity 0.5s, transform 0.5s var(--ease), visibility 0s 0.5s; }
+.inside #interior .plate, .inside #interior .plate.rv { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s 0.15s, transform 0.5s var(--ease) 0.15s; }

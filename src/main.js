@@ -12,6 +12,10 @@ import { FLOORS, SEPARACION, buildUnits, cop, planSVG } from './data.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// El viaje siempre empieza arriba, aunque se recargue a mitad de camino.
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.scrollTo(0, 0);
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
@@ -412,6 +416,7 @@ const NOTES = [
   { t: 'Núcleo de muros', p: [0, 40, 0], side: 'l', show: () => THREE.MathUtils.smoothstep(state.xray, 0.75, 0.95) },
   { t: 'Disipadores en X', p: [12, 24, 8], side: 'r', show: () => THREE.MathUtils.smoothstep(state.xray, 0.75, 0.95) },
   { t: 'Pilotes a 18 m', p: [-12, -12, 8], side: 'l', show: () => THREE.MathUtils.smoothstep(state.xray, 0.92, 1) },
+  { t: 'Piso 14 · Tipo A', p: [-12.4, 73.2, 8], side: 'l', show: (t) => ramp(t, 7.25, 7.5, 7.85, 8.0) },
 ].map((n) => {
   const el = document.createElement('p');
   el.className = 'note ' + n.side;
@@ -643,14 +648,16 @@ tl
   .to(state, { ...cam(12, 40, 100, 0, 32, 0), duration: 0.9 }, 5.8)
   .to(state, { xray: 0, duration: 0.7 }, 5.8)
   .to(state, { explode: 1, duration: 1.1 }, 6.6)
-  .to(state, { ...cam(-14, 58, 156, 0, 50, 0), duration: 1.1 }, 6.7)
+  .to(state, { ...cam(-14, 58, 156, 0, 50, 0), duration: 0.75 }, 6.65)
+  // Antes de entrar: la cámara se acerca al piso 14, al apartamento que se va a recorrer
+  .to(state, { ...cam(-13, 76, 30, -6, 72.6, 4), shift: 0, duration: 0.85, ease: 'power2.in' }, 7.4)
   // V — Interior
   .to(state, { veil: 1, duration: 0.35, ease: 'none' }, 7.9)
   .to(state, { interior: 1, duration: 0.01, ease: 'none' }, 8.26)
   .to(state, { veil: 0, duration: 0.4, ease: 'none' }, 8.3)
   .to(state, { walk: 1, duration: 10.5, ease: 'none' }, 8.35)
   .to(state, { veil: 1, duration: 0.3, ease: 'none' }, 18.75)
-  .to(state, { interior: 0, explode: 0, ...cam(-58, 15, 90, 0, 35, 0), duration: 0.01, ease: 'none' }, 19.06)
+  .to(state, { interior: 0, explode: 0, ...cam(-58, 15, 90, 0, 35, 0), shift: 0.2, duration: 0.01, ease: 'none' }, 19.06)
   // VI — Cierre
   .to(state, { veil: 0, duration: 0.4, ease: 'none' }, 19.1)
   .to(state, { ...cam(-48, 18, 96, 0, 36, 0), duration: 0.5, ease: 'none' }, 19.1);
@@ -934,12 +941,6 @@ function toggleFloor(fi, ev) {
   detail.floors[fi].traverse((o) => {
     if (o.isMesh && (o.material === detailMats.glass || o.material === litMat)) o.material = on ? litMat : detailMats.glass;
   });
-  burstEl.textContent = on ? '¡CLIC!' : '¡CLAC!';
-  burstEl.style.left = `${ev.clientX}px`;
-  burstEl.style.top = `${ev.clientY}px`;
-  burstEl.classList.remove('go');
-  void burstEl.offsetWidth;
-  burstEl.classList.add('go');
 }
 canvas.addEventListener('pointerdown', (ev) => {
   if (!playable()) return;

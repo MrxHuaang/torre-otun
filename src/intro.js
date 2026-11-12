@@ -10,26 +10,29 @@ const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rnd = (() => { let s = 5; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
 function emblem() {
+  // Marca: la torre escalonada, el sol saliendo detrás de la cordillera y el río Otún abajo.
   const rays = [];
-  for (let i = 0; i < 36; i++) {
-    const a = (i / 36) * Math.PI * 2, r0 = i % 2 ? 30 : 22;
-    rays.push(`<path class="ray d" pathLength="1" d="M${(100 + Math.cos(a) * r0).toFixed(1)} ${(100 + Math.sin(a) * r0).toFixed(1)}L${(100 + Math.cos(a) * 89).toFixed(1)} ${(100 + Math.sin(a) * 89).toFixed(1)}"/>`);
+  for (let i = 0; i <= 14; i++) {
+    const a = Math.PI + (i / 14) * Math.PI;                 // solo el semicírculo superior
+    const r0 = 30, r1 = 96;
+    rays.push(`<path class="ray d" pathLength="1" d="M${(100 + Math.cos(a) * r0).toFixed(1)} ${(124 + Math.sin(a) * r0).toFixed(1)}L${(100 + Math.cos(a) * r1).toFixed(1)} ${(124 + Math.sin(a) * r1).toFixed(1)}"/>`);
   }
-  const floors = [];
-  for (let y = 132; y >= 84; y -= 6) floors.push(`<path class="fl d" pathLength="1" d="M82 ${y}H118"/>`);
-  // El recorte va en un grupo fijo; el que gira es el de adentro. Así los rayos nunca se salen del aro.
   return `
-    <defs><clipPath id="gClip"><circle cx="100" cy="100" r="90"/></clipPath></defs>
+    <defs><clipPath id="gClip"><circle cx="100" cy="100" r="89"/></clipPath></defs>
     <g clip-path="url(#gClip)"><g class="rays">${rays.join('')}</g></g>
-    <path class="mask" d="M74 150V138H82V78H86V70H91V62H96V54H104V62H109V70H114V78H118V138H126V150Z"/>
-    <path class="tw d" pathLength="1" d="M66 150H134"/>
-    <path class="tw d" pathLength="1" d="M74 150V138H126V150"/>
-    <path class="tw d" pathLength="1" d="M82 138V78H118V138"/>
-    <path class="tw d" pathLength="1" d="M86 78V70H114V78"/>
-    <path class="tw d" pathLength="1" d="M91 70V62H109V70"/>
-    <path class="tw d" pathLength="1" d="M96 62V54H104V62"/>
-    <path class="tw d" pathLength="1" d="M100 54V34"/>
-    ${floors.join('')}
+    <path class="mask" d="M80 124V112h6V66h4v-9h4v-9h4V30h4v18h4v9h4v9h4v46h6v12z"/>
+    <path class="tw d" pathLength="1" d="M14 124H186"/>
+    <path class="tw d" pathLength="1" d="M80 124V112H120V124"/>
+    <path class="tw d" pathLength="1" d="M86 112V66H114V112"/>
+    <path class="tw d" pathLength="1" d="M90 66V57H110V66"/>
+    <path class="tw d" pathLength="1" d="M94 57V48H106V57"/>
+    <path class="tw d" pathLength="1" d="M98 48V30H102V48"/>
+    <path class="fl d" pathLength="1" d="M86 78H114"/>
+    <path class="fl d" pathLength="1" d="M86 90H114"/>
+    <path class="fl d" pathLength="1" d="M86 102H114"/>
+    <path class="fl d" pathLength="1" d="M52 137H148"/>
+    <path class="fl d" pathLength="1" d="M68 149H132"/>
+    <path class="fl d" pathLength="1" d="M84 161H116"/>
     <circle class="ring d" pathLength="1" cx="100" cy="100" r="92" transform="rotate(-90 100 100)"/>`;
 }
 
@@ -88,7 +91,7 @@ export function createIntro({ getProgress, onEnter }) {
     .to('#gateEmblem .ray', { strokeDashoffset: 0, duration: 0.25, ease: 'none', stagger: 0.012 }, 0.1)
     .to('#gateEmblem .tw', { strokeDashoffset: 0, duration: 0.2, ease: 'none', stagger: 0.07 }, 0.3)
     .to('#gateEmblem .fl', { strokeDashoffset: 0, duration: 0.12, ease: 'none', stagger: 0.04 }, 0.55);
-  if (!reduce) gsap.to('#gateEmblem .rays', { rotation: 360, svgOrigin: '100 100', duration: 90, ease: 'none', repeat: -1 });
+  if (!reduce) gsap.to('#gateEmblem .rays', { scale: 1.06, svgOrigin: '100 124', duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1 });
 
   // Cursor: dos valores suavizados (-1..1) que el CSS usa en todas las capas
   const m = { x: 0, y: 0, tx: 0, ty: 0, bx: 0, by: 0, tbx: 0, tby: 0 };
