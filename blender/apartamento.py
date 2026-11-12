@@ -1232,17 +1232,12 @@ except Exception:
     pass
 os.makedirs(OUT, exist_ok=True)
 
-if MODE == 'glb':
-    # Exporta el apartamento (sin el paisaje) y la ruta de cámara para el recorrido en vivo.
+SKIP = {'suelo', 'ciudad', 'calles', 'arboles', 'cordillera'}   # paisaje: no viaja al navegador
+
+
+def export_path():
+    """Ruta de cámara a velocidad constante (ejes de three.js) y rótulos de cada espacio."""
     import json
-    skip = {'suelo', 'ciudad', 'calles', 'arboles', 'cordillera'}
-    bpy.ops.object.select_all(action='DESELECT')
-    objs = [o for o in scene.objects if o.type == 'MESH' and o.name.split('.')[0] not in skip]
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'apto.glb'), export_format='GLB', use_selection=True,
-                              export_apply=True, export_yup=True, export_lights=False, export_cameras=False)
     NP = 900
     pts = []
     for k in range(NP + 1):
@@ -1254,9 +1249,10 @@ if MODE == 'glb':
                 lo = mid
             else:
                 hi = mid
-        u = lo / NARC
+        span = ARC[hi] - ARC[lo]
+        u = (lo + (0.0 if span < 1e-9 else (want - ARC[lo]) / span)) / NARC
         p, d = spline(POS, u), look_dir(u)
-        pts.append([round(p.x, 3), round(p.z, 3), round(-p.y, 3), round(d.x, 4), round(d.z, 4), round(-d.y, 4)])   # a ejes de three.js
+        pts.append([round(p.x, 4), round(p.z, 4), round(-p.y, 4), round(d.x, 4), round(d.z, 4), round(-d.y, 4)])
     n = len(WAY) - 1
     marks = []
     for i, w in enumerate(WAY):
@@ -1266,7 +1262,102 @@ if MODE == 'glb':
             marks.append({'t': round(ARC[k] / ARC[-1], 4), 'title': w[2][0], 'text': w[2][1]})
     with open(os.path.join(OUT, 'apto.json'), 'w', encoding='utf-8') as fh:
         json.dump({'path': pts, 'marks': marks, 'length': round(ARC[-1], 2)}, fh, ensure_ascii=False)
+
+
+def select_only(objs):
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+
+
+if MODE == 'glb':
+    # Apartamento liviano (sin biseles) para el modo tinta, más la ruta de cámara.
+    objs = [o for o in scene.objects if o.type == 'MESH' and o.name.split('.')[0] not in SKIP]
+    select_only(objs)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'apto.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_yup=True, export_lights=False, export_cameras=False)
+    export_path()
     print('EXPORT apto', len(objs), 'objetos', os.path.getsize(os.path.join(OUT, 'apto.glb')) // 1024, 'KB', flush=True)
+elif MODE == 'real':
+    # Modo realista para tiempo real: la luz (sol, cielo, rebotes, lámparas) y el color de cada material
+    # se hornean en dos texturas. En el navegador no hay luces que calcular: corre en cualquier teléfono.
+    SIZE = int(arg(6, 4096))
+    GLASS = {'vidrio', 'esmerilado'}
+    GLOW = {'bombillo', 'led', 'spot', 'pantalla'}
+    ARCH = {'pared', 'techo', 'piso', 'porcelanato', 'baldosa'}
+    SOFT = {'lino', 'cojin', 'terracota', 'verde', 'boucle', 'lana', 'lana2', 'duvet', 'terciopelo', 'toalla', 'cortina'}
+    groups = {'arq': [], 'tel': [], 'mob': [], 'vidrio': [], 'luz': []}   # arquitectura, textiles, resto del mobiliario
+    objs = [o for o in scene.objects if o.type == 'MESH' and o.name.split('.')[0] not in SKIP]
+    select_only(objs)
+    bpy.ops.object.convert(target='MESH')                 # aplica biseles y subdivisión
+    for o in objs:
+        name = o.material_slots[0].material.name.split('.')[0] if o.material_slots else 'pared'
+        key = 'vidrio' if name in GLASS else 'luz' if name in GLOW else 'arq' if name in ARCH else 'tel' if name in SOFT else 'mob'
+        groups[key].append(o)
+    joined = {}
+    for key, lst in groups.items():
+        select_only(lst)
+        if len(lst) > 1:
+            bpy.ops.object.join()
+        joined[key] = bpy.context.view_layer.objects.active
+        joined[key].name = key
+        print('GRUPO', key, len(lst), 'objetos', len(joined[key].data.polygons), 'caras', flush=True)
+    joined['vidrio'].hide_render = True                    # el vidrio no aporta al horneado y mete ruido
+    for m in bpy.data.materials:
+        if m.node_tree and 'Principled BSDF' in m.node_tree.nodes:
+            pb = m.node_tree.nodes['Principled BSDF']
+            pb.inputs['Metallic'].default_value = 0.0      # los metales se hornean como color mate
+            for l in list(pb.inputs['Normal'].links):      # el relieve fino, a escala de textura horneada, solo mete grano
+                m.node_tree.links.remove(l)
+    sun_data.energy = 2.4                                  # sol menos duro: sin manchas quemadas sobre muebles
+    vs.exposure = 0.4
+    c.use_adaptive_sampling, c.adaptive_threshold = True, 0.008
+    c.samples, c.use_denoising = SAMPLES, True
+    try:
+        c.denoiser = 'OPENIMAGEDENOISE'
+    except Exception as ex:
+        print('denoiser', ex)
+    im.file_format, im.quality, im.color_mode = 'WEBP', 86, 'RGB'
+    for key in ('arq', 'tel', 'mob'):
+        ob = joined[key]
+        t0 = time.time()
+        me = ob.data
+        while me.uv_layers:
+            me.uv_layers.remove(me.uv_layers[0])
+        me.uv_layers.new(name='lm')
+        select_only([ob])
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.0)
+        bpy.ops.uv.pack_islands(margin=0.0015)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        print('UV', key, f'{time.time() - t0:.0f}s', flush=True)
+        img = bpy.data.images.new('lm_' + key, SIZE, SIZE, alpha=False, float_buffer=True)
+        for slot in ob.material_slots:
+            nt = slot.material.node_tree
+            node = nt.nodes.new('ShaderNodeTexImage')
+            node.image = img
+            for nd in nt.nodes:
+                nd.select = False
+            node.select = True
+            nt.nodes.active = node
+        t0 = time.time()
+        bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT', 'COLOR'}, margin=8, use_clear=True)
+        print('BAKE', key, f'{time.time() - t0:.0f}s', flush=True)
+        img.save_render(os.path.join(OUT, f'apto-{key}-4k.webp'), scene=scene)
+        img.scale(SIZE // 2, SIZE // 2)
+        img.save_render(os.path.join(OUT, f'apto-{key}-2k.webp'), scene=scene)
+        flat = bpy.data.materials.new('horneado_' + key)
+        me.materials.clear()
+        me.materials.append(flat)
+    joined['vidrio'].hide_render = False
+    select_only(list(joined.values()))
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'apto-real.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_yup=True, export_lights=False, export_cameras=False,
+                              export_normals=False)
+    export_path()
+    print('EXPORT real', os.path.getsize(os.path.join(OUT, 'apto-real.glb')) // 1024, 'KB', flush=True)
 elif MODE.startswith('ink'):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import tinta

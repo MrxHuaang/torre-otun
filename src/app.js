@@ -69,8 +69,7 @@ function circle(arr, r, y, seg = 96, from = 0, to = Math.PI * 2, plane = 'xz') {
 /* ------------------------------------------------------------------ */
 
 const canvas = $('#stage');
-// El lienzo final no necesita suavizado propio: la escena se dibuja en texturas y la tinta la compone.
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 // Teléfonos y tabletas: sin multimuestreo y con resolución contenida. El trazo se calcula por píxel real,
 // así que sigue nítido; si aun así el equipo no da el ritmo, adapt() baja un escalón.
 const MOBILE = window.matchMedia('(pointer: coarse)').matches;
@@ -78,7 +77,7 @@ const quality = { dpr: Math.min(window.devicePixelRatio || 1, MOBILE ? 1.5 : 2),
 renderer.setPixelRatio(quality.dpr);
 renderer.setClearColor(BG);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;   // la tinta cuantiza el tono: no hace falta sombra más cara
 renderer.shadowMap.autoUpdate = false;
 const ink = createInk(renderer, { paper: BG, ink: INK, ochre: 0x9c8b5e, msaa: !MOBILE });
 // Estilo tinta por defecto. Agrega ?limpio a la URL para ver la maqueta sin el pase de tinta.
@@ -210,6 +209,7 @@ const detailMats = {
   roof: new THREE.MeshLambertMaterial({ color: 0xb4623f, side: THREE.DoubleSide }),   // tejas: cálido, la tinta lo pinta del acabado
   road: new THREE.MeshLambertMaterial({ color: 0xd6d6d6 }),
 };
+for (const [key, m] of Object.entries(detailMats)) m.userData.key = key;   // para recolorear el barrio en la versión realista
 const detail = { ready: false, floors: [], solids: [] };
 const schematicCity = [];   // cubos provisionales del barrio; se retiran al cargar el barrio detallado
 let schMode = true;
@@ -393,7 +393,7 @@ const state = {
   shift: 0.2,   // la torre se corre a un lado para no quedar debajo del texto
 };
 const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null, floor: null };
-const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
+const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, ended: false, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
 const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const view = { w: 1, h: 1 };
 
@@ -462,7 +462,7 @@ function adapt(dt) {
   if (quality.n < 45) return;
   const avg = quality.acc / quality.n;
   quality.acc = 0; quality.n = 0;
-  if (avg > 0.026 && quality.dpr > 0.75) {
+  if (avg > 0.022 && quality.dpr > 0.75) {
     quality.dpr = Math.max(0.75, quality.dpr - 0.25);
     resize(true);
   }
@@ -765,11 +765,52 @@ function stepTour(dir) {
   else seekTour(walk.t - marks[k].t > 0.015 || k === 0 ? marks[k].t : marks[k - 1].t);
 }
 
+// Final del recorrido, con el mismo cuidado que la portada: el papel cubre la escena, el título sube
+// letra por letra, la línea se dibuja y el botón de volver viaja de su esquina al centro.
+const endEl = $('#tourEnd'), exitBtn = $('#tourExit');
+{
+  const title = $('#tourEndTitle');
+  title.setAttribute('aria-label', title.textContent);
+  title.innerHTML = title.textContent.split(' ')
+    .map((w) => `<span class="wd" aria-hidden="true">${[...w].map((c) => `<span class="ch">${c}</span>`).join('')}</span>`).join(' ');
+}
+let endTl = null;
+function setEnded(on) {
+  if (on === walk.ended) return;
+  walk.ended = on;
+  endEl.setAttribute('aria-hidden', String(!on));
+  if (!on) { endTl && endTl.timeScale(1.8).reverse(); return; }
+  if (endTl) endTl.progress(0).kill();
+  const d = reduceMotion ? 0.01 : 1;
+  const from = exitBtn.getBoundingClientRect(), to = $('#tourEndSlot').getBoundingClientRect();
+  const hudOut = ['.tour-plate', '.tour-ctl', '.tour-mode', '#minimap'];
+  endTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+    .to(hudOut, { autoAlpha: 0, y: 14, duration: 0.45 * d, ease: 'power2.in', stagger: 0.04 * d }, 0)
+    .to('#tourWash', { opacity: 1, duration: 1.1 * d, ease: 'power2.out' }, 0.1 * d)
+    .set(endEl, { visibility: 'visible' }, 0.1 * d)
+    .to(exitBtn, {
+      x: to.left + to.width / 2 - (from.left + from.width / 2), y: to.top + to.height / 2 - (from.top + from.height / 2),
+      scale: 1.22, duration: 1.3 * d, ease: 'power3.inOut',
+    }, 0.15 * d)
+    .fromTo('.tour-end .eyebrow', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.7 * d }, 0.45 * d)
+    .fromTo('.tour-end .ch', { yPercent: 115 }, { yPercent: 0, duration: 1.1 * d, stagger: 0.022 * d }, 0.5 * d)
+    .fromTo('.tour-end-rule path', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.2 * d, ease: 'power2.inOut' }, 0.8 * d)
+    .fromTo('#tourAgain', { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6 * d }, 1.45 * d);
+}
+function resetEnded() {
+  walk.ended = false;
+  endEl.setAttribute('aria-hidden', 'true');
+  if (endTl) { endTl.progress(0).kill(); endTl = null; }
+  gsap.set(['.tour-plate', '.tour-ctl', '.tour-mode', '#minimap', exitBtn, '#tourWash', endEl, '#tourAgain', '.tour-end .eyebrow'], { clearProps: 'all' });
+}
+$('#tourAgain').addEventListener('click', () => { seekTour(0); gsap.delayedCall(0.9, () => walk.on && setPlaying(true)); });
+
 function renderWalk(dt) {
   if (walk.playing && !walk.seeking) {
     walk.t = Math.min(1, walk.t + dt / TOUR_SECONDS);
     if (walk.t >= 1) setPlaying(false);
   }
+  if (!walk.busy) setEnded(walk.t >= 1 ? true : walk.t < 0.995 ? false : walk.ended);
   // La mirada sigue al cursor (o al dedo, mientras arrastra) y vuelve sola al frente.
   if (!look2.active) { walk.dragX *= 0.94; walk.dragY *= 0.94; }
   const lx = THREE.MathUtils.clamp((finePointer ? mouse.x * 0.55 : 0) + walk.dragX, -1.8, 1.8);
@@ -779,7 +820,12 @@ function renderWalk(dt) {
   // La cámara sigue al avance con un amortiguado corto: sin saltos al pausar, saltar o arrastrar la línea.
   walk.st += (walk.t - walk.st) * (1 - Math.exp(-dt * 7));
   apt.pose(walk.st, walk.lookX, walk.lookY);
-  ink.render(apt.scene, apt.camera, { fadeA: 60, fadeB: 420 });
+  if (walk.real) {
+    renderer.setRenderTarget(null);
+    renderer.render(apt.real.scene, apt.camera);        // luz horneada: un solo pase, sin luces
+  } else {
+    ink.render(apt.scene, apt.camera, { fadeA: 60, fadeB: 420 });
+  }
 
   const k = markAt(walk.t);
   if (k !== walk.key) {
@@ -789,7 +835,7 @@ function renderWalk(dt) {
     hud.count.textContent = `${String(k + 1).padStart(2, '0')} / ${String(apt.marks.length).padStart(2, '0')}`;
   }
   hud.fill.style.transform = `scaleX(${walk.t})`;
-  hud.knob.style.left = `${walk.t * 100}%`;
+  hud.knob.style.transform = `translateX(${walk.t * hud.track.clientWidth}px)`;
   minimap.update(walk.t);
 }
 
@@ -821,12 +867,41 @@ async function endTour() {
   setPlaying(false);
   await gsap.to(walk, { veil: 1, duration: 0.4, ease: 'power2.in' });
   walk.on = false;
+  resetEnded();
   document.body.classList.remove('inside');
   tourEl.setAttribute('aria-hidden', 'true');
   lenis.start();
   await gsap.to(walk, { veil: 0, duration: 0.55, ease: 'power2.out' });
   walk.busy = false;
 }
+
+// Tinta o realista: mismo recorrido, dos formas de verlo. La realista se descarga la primera vez que se pide.
+const modeBtns = $$('.tour-mode button');
+async function setStyle(real) {
+  if (!walk.on || real === walk.real || walk.busy) return;
+  const btn = modeBtns.find((b) => (b.dataset.style === 'real') === real);
+  if (real && !apt.real.ready) {
+    btn.classList.add('loading');
+    try {
+      await apt.loadReal(renderer, MOBILE);
+    } catch (err) {
+      console.warn('Versión realista no disponible', err);
+      notify('No se pudo cargar la versión realista. Inténtalo de nuevo.');
+      return;
+    } finally {
+      btn.classList.remove('loading');
+    }
+    if (!walk.on) return;
+  }
+  walk.busy = true;
+  await gsap.to(walk, { veil: 1, duration: 0.3, ease: 'power2.in' });
+  walk.real = real;
+  document.body.classList.toggle('real', real);
+  modeBtns.forEach((b) => { const on = b === btn; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  await gsap.to(walk, { veil: 0, duration: 0.4, ease: 'power2.out' });
+  walk.busy = false;
+}
+modeBtns.forEach((b) => b.addEventListener('click', () => setStyle(b.dataset.style === 'real')));
 
 $$('.js-tour').forEach((b) => b.addEventListener('click', startTour));
 $('#tourExit').addEventListener('click', endTour);

@@ -173,6 +173,15 @@
 
   <!-- Recorrido interior: el apartamento en 3D, con controles propios -->
   <div class="tour" id="tour" aria-hidden="true">
+    <!-- Final del recorrido: el papel cubre la escena y el botón de volver viaja al centro -->
+    <i class="tour-wash" id="tourWash" aria-hidden="true"></i>
+    <div class="tour-end" id="tourEnd" aria-hidden="true">
+      <p class="eyebrow">Fin del recorrido</p>
+      <h2 class="display mid" id="tourEndTitle">Así se vive en el piso 14.</h2>
+      <svg class="tour-end-rule" viewBox="0 0 320 12" aria-hidden="true"><path pathLength="1" d="M2 6C40 3 82 9 120 6S200 4 242 7S300 5 318 6" /></svg>
+      <span class="tour-end-slot" id="tourEndSlot"></span>
+      <button class="tour-again" id="tourAgain">Ver de nuevo</button>
+    </div>
     <button class="btn small ghost tour-exit" id="tourExit">← Volver a la torre</button>
     <div class="tour-plate">
       <p class="eyebrow">Tipo A · Piso 14 <em id="tourCount"></em></p>
@@ -184,6 +193,10 @@
       <button id="tourPlay" class="tour-play" aria-label="Pausar"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-pause" d="M8 5v14M16 5v14"/><path class="i-play" d="M8 5l11 7-11 7z"/></svg></button>
       <button id="tourNext" aria-label="Siguiente espacio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
       <div class="tour-track" id="tourTrack" role="slider" aria-label="Avance del recorrido"><i><em id="tourFill"></em></i><u id="tourKnob"></u></div>
+    </div>
+    <div class="tour-mode" role="group" aria-label="Estilo del recorrido">
+      <button data-style="ink" class="on" aria-pressed="true">Tinta</button>
+      <button data-style="real" aria-pressed="false">Realista</button>
     </div>
     <p class="tour-hint">Arrastra para mirar alrededor</p>
   </div>

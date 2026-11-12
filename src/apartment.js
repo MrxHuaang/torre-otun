@@ -89,7 +89,7 @@ function material(name) {
 
 export function createApartment() {
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(64, 1, 0.06, 1500);
+  const camera = new THREE.PerspectiveCamera(64, 1, 0.14, 1400);   // cercano a 14 cm: precisión de profundidad sin parpadeo en marcos
   const api = { scene, camera, ready: false, marks: [], plan: [], length: 60 };
   let path = [];
 
@@ -113,7 +113,10 @@ export function createApartment() {
   // Cordillera al fondo: siluetas de papel que la tinta contornea
   {
     const mat = new THREE.MeshBasicMaterial({ color: 0xf6f5f1, side: THREE.DoubleSide });
-    const ridge = (x, base, amp, seed) => {
+    for (const [x, base, amp, seed] of [[900, 60, 300, 4], [680, 10, 190, 2.4], [480, -30, 110, 1]]) scene.add(ridgeMesh(x, base, amp, seed, mat));
+  }
+  function ridgeMesh(x, base, amp, seed, mat) {
+    {
       const N = 160, pos = [], idx = [];
       for (let i = 0; i <= N; i++) {
         const z = -1000 + (i / N) * 2000;
@@ -125,11 +128,8 @@ export function createApartment() {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setIndex(idx);
       g.computeVertexNormals();
-      scene.add(new THREE.Mesh(g, mat));
-    };
-    ridge(900, 60, 300, 4);
-    ridge(680, 10, 190, 2.4);
-    ridge(480, -30, 110, 1);
+      return new THREE.Mesh(g, mat);
+    }
   }
 
   const loader = new GLTFLoader();
@@ -158,11 +158,100 @@ export function createApartment() {
   });
 
   // El barrio de la torre, visto desde el piso 14
-  api.setCity = (barrio) => {
-    const c = barrio.clone();
+  let city = null;
+  const placeCity = (target) => {
+    const c = city.clone();
     c.position.set(-5, -43.4, 6);
-    scene.add(c);
+    if (target !== scene) {
+      // En la versión realista el barrio lleva colores de ciudad, no de lámina
+      const tint = { conc: 0xe7e1d6, glass: 0x6f8798, frame: 0x3a3a3a, wood: 0x9a7650, green: 0x56794a, rail: 0xcfd6da, roof: 0xa8563a, road: 0x8d8f8e };
+      const made = {};
+      c.traverse((o) => {
+        if (!o.isMesh) return;
+        const key = o.material.userData.key || 'conc';
+        o.material = made[key] || (made[key] = new THREE.MeshLambertMaterial({ color: tint[key] || tint.conc, side: o.material.side }));
+      });
+    }
+    target.add(c);
   };
+  api.setCity = (barrio) => {
+    city = barrio;
+    placeCity(scene);
+    if (api.real.scene) placeCity(api.real.scene);
+  };
+
+  // Versión realista: mismo apartamento con muebles detallados y la luz horneada en Blender
+  // (sol, cielo, rebotes y lámparas ya vienen pintados en tres texturas). No hay luces que calcular,
+  // así que es incluso más liviana de dibujar que la tinta. Se descarga solo cuando se pide.
+  api.real = { ready: false, scene: null, pending: null };
+  api.loadReal = (renderer, light) => api.real.pending || (api.real.pending = (async () => {
+    // 4K solo en equipos con memoria de sobra; el resto usa 2K, que pesa la cuarta parte
+    const size = light || renderer.capabilities.maxTextureSize < 8192 || (navigator.deviceMemory || 8) < 8 ? '2k' : '4k';
+    const tex = (name) => new THREE.TextureLoader().loadAsync(`/models/apto-${name}-${size}.webp`).then((t) => {
+      t.flipY = false;                                   // convención de glTF
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      return t;
+    });
+    const [gltf, arq, tel, mob] = await Promise.all([
+      new Promise((res, rej) => loader.load('/models/apto-real.glb', res, undefined, rej)), tex('arq'), tex('tel'), tex('mob'),
+    ]);
+    const rs = new THREE.Scene();
+    const HAZE = 0xdfe7ec;
+    rs.fog = new THREE.Fog(HAZE, 120, 950);                               // bruma de mañana: el barrio se funde con la distancia
+    rs.add(new THREE.HemisphereLight(0xdfeaf5, 0x8f8a7c, 1.5));           // luces solo para el barrio, afuera
+    const sunR = new THREE.DirectionalLight(0xffe6c4, 2.6);
+    sunR.position.set(1, 0.46, -0.34);
+    rs.add(sunR);
+    // Cielo: degradado de la bruma del horizonte al azul alto, con el resplandor del sol naciente
+    rs.add(new THREE.Mesh(new THREE.SphereGeometry(1200, 32, 16), new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { uSun: { value: new THREE.Vector3(1, 0.46, -0.34).normalize() } },
+      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform vec3 uSun; varying vec3 vDir;
+        void main() {
+          vec3 d = normalize(vDir);
+          float h = clamp(d.y, 0.0, 1.0);
+          vec3 c = mix(vec3(0.875, 0.906, 0.925), vec3(0.47, 0.66, 0.86), pow(h, 0.55));
+          float s = max(dot(d, uSun), 0.0);
+          c += vec3(1.0, 0.86, 0.66) * (pow(s, 6.0) * 0.28 + pow(s, 90.0) * 0.6);
+          gl_FragColor = vec4(c, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    })));
+    // Suelo de la ciudad bajo el barrio, para que no flote sobre el vacío
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(1000, 48), new THREE.MeshLambertMaterial({ color: 0x9aa58f }));
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -43.6;
+    rs.add(ground);
+    const flat = (map) => new THREE.MeshBasicMaterial({ map, fog: false });
+    const baked = { arq: flat(arq), tel: flat(tel), mob: flat(mob) };   // arquitectura, textiles, resto del mobiliario
+    const glass = {
+      vidrio: new THREE.MeshBasicMaterial({ color: 0xdfeaf0, transparent: true, opacity: 0.1, depthWrite: false, fog: false }),
+      esmerilado: new THREE.MeshBasicMaterial({ color: 0xeef3f4, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
+    };
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      let group = o;
+      while (group.parent && !/^(arq|tel|mob|vidrio|luz)/.test(group.name)) group = group.parent;
+      const key = group.name.match(/^(arq|tel|mob|vidrio|luz)/)?.[1], name = o.material.name;
+      if (baked[key]) o.material = baked[key];
+      else if (key === 'vidrio') { o.material = glass[name] || glass.vidrio; o.renderOrder = 2; }
+      else o.material = new THREE.MeshBasicMaterial({ color: GLOW[name] || 0xfff1d6, fog: false });
+    });
+    // Los marcos tocan el muro: van un pelo por delante para que no parpadeen
+    Object.assign(baked.mob, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    rs.add(gltf.scene);
+    // Cordillera en tres planos: cada uno más azul y más claro con la distancia
+    for (const [x, base, amp, seed, color] of [[900, 60, 300, 4, 0xbccbd9], [680, 10, 190, 2.4, 0x9fb4c2], [480, -30, 110, 1, 0x7f9a93]]) {
+      rs.add(ridgeMesh(x, base, amp, seed, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: false })));
+    }
+    api.real.scene = rs;
+    if (city) placeCity(rs);
+    await renderer.compileAsync?.(rs, camera);
+    api.real.ready = true;
+  })().catch((err) => { api.real.pending = null; throw err; }));
 
   const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), right = new THREE.Vector3();
   const UP = new THREE.Vector3(0, 1, 0);
