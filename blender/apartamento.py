@@ -646,8 +646,11 @@ for (x, y, s) in ((2.95, 4.36, 1), (3.85, 4.36, 1), (2.95, 5.84, -1), (3.85, 5.8
         cyl(0.012, 0.014, 0.42, (x + dx, y - 0.2 * s, 0.65), M['walnut'], (0.12 * s, 0, 0), 12)
 lathe(VASE, (3.4, 5.1, 0.761), M['ceramic'])
 for i in range(6):
-    cyl(0.003, 0.004, 0.62, (3.4 + random.uniform(-0.05, 0.05), 5.1 + random.uniform(-0.05, 0.05), 1.3),
-        M['walnut'], (random.uniform(-0.35, 0.35), random.uniform(-0.35, 0.35), 0), 8)
+    # cada varilla nace dentro de la boca del jarrón (z 0.96) y se abre hacia arriba
+    rx, ry, L = random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2), random.uniform(0.5, 0.64)
+    d = Vector((math.cos(rx) * math.sin(ry), -math.sin(rx), math.cos(rx) * math.cos(ry)))
+    base = Vector((3.4 + random.uniform(-0.012, 0.012), 5.1 + random.uniform(-0.012, 0.012), 0.96))
+    cyl(0.003, 0.004, L, tuple(base + d * (L / 2)), M['walnut'], (rx, ry, 0), 8)
 cyl(0.003, 0.003, 0.72, (3.4, 5.1, 2.44), M['metal'], seg=8)
 ball(0.14, (3.4, 5.1, 1.98), M['shade'])
 
@@ -787,7 +790,7 @@ cyl(0.008, 0.008, 0.6, (2.36, 8.85, 1.25), M['brass'], RX, 12)
 soft((0.05, 0.42, 0.6), (2.34, 8.85, 0.97), M['towel'])
 cyl(0.11, 0.08, 0.2, (2.2, 10.1, 0.11), M['pot'], seg=32, bv=0.006)
 foliage((2.2, 10.1, 0.55), 0.26, 34, M['leaf'], (0.26, 0.1), 1.2)
-spots([(1.2, 9.2), (1.2, 10.95)])
+spots([(1.2, 9.2), (0.55, 10.7)])
 warm((1.2, 9.4, 2.3), 44)
 warm((1.2, 10.9, 2.3), 22)
 
@@ -874,8 +877,8 @@ warm((8.4, 7.9, 2.3), 16)
 slats(1.79, 45, 0.05, 2.49, 0.49, 0.76, M['oak'])
 slats(1.79, 45, 0.05, 1.61, 0.49, 0.76, M['oak'])
 # Luz lineal en techo de la zona social
-box((9.4, 0.03, 0.008), (5, 0.3, 2.796), M['led'], 0)
-box((4.4, 0.03, 0.008), (3.3, 6.7, 2.796), M['led'], 0)
+box((4.4, 0.03, 0.008), (2.5, 0.3, 2.796), M['led'], 0)            # solo sobre el mesón de la cocina
+spots([(6.0, 2.6), (8.2, 2.6), (6.0, 4.9), (8.2, 4.9), (1.2, 4.6), (1.2, 6.3), (6.3, 0.9), (8.3, 0.9)])
 # Biblioteca abierta junto a la entrada
 for z in (0.06, 0.52, 0.98, 1.44, 1.9):
     box((0.3, 1.9, 0.03), (0.16, 3.2, z), M['oak'], 0.003)

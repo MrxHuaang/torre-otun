@@ -718,7 +718,7 @@ $$('[data-scroll]').forEach((a) =>
   createIntro({
     getProgress: () => (performance.now() - t0 > 7000
       ? 1                                                        // si algo no carga, no se queda pegada
-      : 0.15 + (detail.ready ? 0.45 : 0) + (apt.ready ? 0.4 : 0)),
+      : 0.15 + (detail.ready ? 0.85 : 0)),
     onEnter: () => {
       gsap.to(state, { intro: 0, duration: 3.4, ease: 'power3.out' });
       gsap.to(state, { build: 1, duration: 3.0, ease: 'power1.inOut', delay: 0.15 });
@@ -728,8 +728,9 @@ $$('[data-scroll]').forEach((a) =>
         lenis.start();
         $$('.block').forEach((el) => io.observe(el));
       });
-      // La versión realista se adelanta en segundo plano: al abrir el recorrido ya está lista.
-      gsap.delayedCall(3, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
+      // El apartamento se pide ya dentro, y su versión realista un poco después: al abrir el recorrido están listos.
+      gsap.delayedCall(1.5, apt.start);
+      gsap.delayedCall(3.5, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
     },
   });
 }
@@ -740,22 +741,50 @@ $$('[data-scroll]').forEach((a) =>
 
 const tourEl = $('#tour');
 const hud = {
-  title: $('#tourTitle'), text: $('#tourText'), count: $('#tourCount'),
-  fill: $('#tourFill'), knob: $('#tourKnob'), track: $('#tourTrack'), play: $('#tourPlay'),
+  title: $('#tourTitle'), text: $('#tourText'), play: $('#tourPlay'), pulse: $('#tourPulse'),
+  fill: $('#tourFill'), me: $('#tourMe'), route: $('#tourRoute'), stops: $('#tourStops'),
 };
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
+// Paradas de la línea: los espacios con nombre propio. Los pasillos son tránsito, no parada.
+// Van repartidas por igual en la línea aunque unas estén más cerca que otras en el camino.
+let stops = [{ t: 0, name: '' }], stopKey = -1, routeW = 1;
+const stopAt = (t) => { let k = 0; stops.forEach((st, i) => { if (st.t <= t + 1e-4) k = i; }); return k; };
+const lineAt = (t) => {                       // avance del camino → posición en la línea (0..1)
+  const k = stopAt(t), next = stops[k + 1];
+  return (k + (next ? (t - stops[k].t) / (next.t - stops[k].t) : 0)) / Math.max(1, stops.length - 1);
+};
+const timeAt = (x) => {                       // posición en la línea → avance del camino
+  const u = Math.min(1, Math.max(0, x)) * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(u));
+  return stops[k].t + (u - k) * (stops[k + 1].t - stops[k].t);
+};
+const measureRoute = () => { routeW = hud.route.clientWidth || 1; };
+window.addEventListener('resize', measureRoute);
+
 apt.load.then(() => {
   minimap.setPath(apt.plan);
-  hud.track.insertAdjacentHTML('beforeend', apt.marks.slice(1).map((m) => `<b style="left:${m.t * 100}%"></b>`).join(''));
+  const short = { 'Sala comedor': 'Comedor', 'Alcoba principal': 'Principal' };
+  stops = apt.marks.filter((m) => !/^(Pasillo|Hacia)/.test(m.title)).map((m) => ({ t: m.t, name: short[m.title] || m.title }));
+  hud.stops.innerHTML = stops.map((st, i) =>
+    `<button data-i="${i}" style="left:${(i / (stops.length - 1)) * 100}%" aria-label="Ir a ${st.name}"><i></i><span>${st.name}</span></button>`).join('');
   renderer.compileAsync?.(apt.scene, apt.camera).catch(() => {});
 }).catch((err) => console.warn('Apartamento no disponible', err));
 
 function setPlaying(on) {
   walk.playing = on;
   hud.play.classList.toggle('paused', !on);
-  hud.play.setAttribute('aria-label', on ? 'Pausar' : 'Reproducir');
+  hud.play.setAttribute('aria-label', on ? 'Pausar' : 'Seguir');
+}
+// Pausar o seguir, con una señal breve en el centro cuando se hace tocando la escena
+function togglePlay(signal) {
+  if (walk.t >= 1) walk.t = 0;          // al final, vuelve a empezar
+  setPlaying(!walk.playing);
+  if (!signal) return;
+  hud.pulse.classList.toggle('paused', walk.playing);   // muestra lo que acaba de pasar: ▶ al seguir, ❙❙ al pausar
+  hud.pulse.classList.remove('go');
+  void hud.pulse.offsetWidth;
+  hud.pulse.classList.add('go');
 }
 const markAt = (t) => { let k = 0; apt.marks.forEach((m, i) => { if (m.t <= t + 1e-4) k = i; }); return k; };
 
@@ -763,10 +792,10 @@ function seekTour(t) {
   walk.seeking = true;
   gsap.to(walk, { t, duration: 0.9, ease: 'power2.inOut', overwrite: true, onComplete: () => { walk.seeking = false; } });
 }
-function stepTour(dir) {
-  const k = markAt(walk.t), marks = apt.marks;
-  if (dir > 0) seekTour(k + 1 < marks.length ? marks[k + 1].t : 1);
-  else seekTour(walk.t - marks[k].t > 0.015 || k === 0 ? marks[k].t : marks[k - 1].t);
+function stepTour(dir) {                        // flechas del teclado: parada siguiente o anterior
+  const k = stopAt(walk.t);
+  if (dir > 0) seekTour(k + 1 < stops.length ? stops[k + 1].t + 0.002 : 1);
+  else seekTour((walk.t - stops[k].t > 0.02 || k === 0 ? stops[k].t : stops[k - 1].t) + 0.002);
 }
 
 // Final del recorrido, con el mismo cuidado que la portada: el papel cubre la escena, el título sube
@@ -787,7 +816,7 @@ function setEnded(on) {
   if (endTl) endTl.progress(0).kill();
   const d = reduceMotion ? 0.01 : 1;
   const from = exitBtn.getBoundingClientRect(), to = $('#tourEndSlot').getBoundingClientRect();
-  const hudOut = ['.tour-plate', '.tour-ctl', '.tour-mode', '#minimap'];
+  const hudOut = ['.tour-plate', '.tour-bar', '.tour-mode', '#minimap'];
   endTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
     .to(hudOut, { autoAlpha: 0, y: 14, duration: 0.45 * d, ease: 'power2.in', stagger: 0.04 * d }, 0)
     .to('#tourWash', { opacity: 1, duration: 1.1 * d, ease: 'power2.out' }, 0.1 * d)
@@ -805,7 +834,7 @@ function resetEnded() {
   walk.ended = false;
   endEl.setAttribute('aria-hidden', 'true');
   if (endTl) { endTl.progress(0).kill(); endTl = null; }
-  gsap.set(['.tour-plate', '.tour-ctl', '.tour-mode', '#minimap', exitBtn, '#tourWash', endEl, '#tourAgain', '.tour-end .eyebrow'], { clearProps: 'all' });
+  gsap.set(['.tour-plate', '.tour-bar', '.tour-mode', '#minimap', exitBtn, '#tourWash', endEl, '#tourAgain', '.tour-end .eyebrow'], { clearProps: 'all' });
 }
 $('#tourAgain').addEventListener('click', () => { seekTour(0); gsap.delayedCall(0.9, () => walk.on && setPlaying(true)); });
 
@@ -836,16 +865,22 @@ function renderWalk(dt) {
     walk.key = k;
     hud.title.textContent = apt.marks[k].title;
     hud.text.textContent = apt.marks[k].text;
-    hud.count.textContent = `${String(k + 1).padStart(2, '0')} / ${String(apt.marks.length).padStart(2, '0')}`;
   }
-  hud.fill.style.transform = `scaleX(${walk.t})`;
-  hud.knob.style.transform = `translateX(${walk.t * hud.track.clientWidth}px)`;
+  const sk = stopAt(walk.t);
+  if (sk !== stopKey) {
+    stopKey = sk;
+    [...hud.stops.children].forEach((b, i) => { b.classList.toggle('on', i === sk); b.classList.toggle('past', i < sk); });
+  }
+  const x = lineAt(walk.t);
+  hud.fill.style.transform = `scaleX(${x})`;
+  hud.me.style.transform = `translateX(${x * routeW}px)`;
   minimap.update(walk.t);
 }
 
 async function startTour() {
   if (walk.on || walk.busy || document.body.classList.contains('locked')) return;
   walk.busy = true;
+  apt.start();
   if (ex.on) await new Promise((res) => exitExplore(res));
   lenis.stop();
   // El recorrido abre en versión realista. Si no alcanza a llegar en unos segundos (conexión lenta),
@@ -867,6 +902,8 @@ async function startTour() {
   markStyle(gotReal && apt.real.ready);
   document.body.classList.add('inside');
   tourEl.setAttribute('aria-hidden', 'false');
+  stopKey = -1;
+  measureRoute();
   setPlaying(!reduceMotion);
   await gsap.to(walk, { veil: 0, duration: 0.6, delay: 0.1, ease: 'power2.out' });
   walk.busy = false;
@@ -920,40 +957,52 @@ modeBtns.forEach((b) => b.addEventListener('click', () => setStyle(b.dataset.sty
 
 $$('.js-tour').forEach((b) => b.addEventListener('click', startTour));
 $('#tourExit').addEventListener('click', endTour);
-$('#tourPrev').addEventListener('click', () => stepTour(-1));
-$('#tourNext').addEventListener('click', () => stepTour(1));
-hud.play.addEventListener('click', () => {
-  if (walk.t >= 1) walk.t = 0;          // al final, el botón vuelve a empezar
-  setPlaying(!walk.playing);
-});
+hud.play.addEventListener('click', () => togglePlay(false));
 {
-  // Línea de avance: clic o arrastre para ir a cualquier punto
-  let dragging = false;
+  // Línea de espacios: tocar una parada lleva a ese espacio; arrastrar sobre la línea recorre el camino
+  let drag = null;
   const seek = (ev) => {
-    const r = hud.track.getBoundingClientRect();
+    const r = hud.route.getBoundingClientRect();
     gsap.killTweensOf(walk, 't');
     walk.seeking = false;
-    walk.t = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+    walk.t = timeAt((ev.clientX - r.left) / r.width);
   };
-  hud.track.addEventListener('pointerdown', (ev) => { dragging = true; hud.track.setPointerCapture(ev.pointerId); seek(ev); });
-  hud.track.addEventListener('pointermove', (ev) => { if (dragging) seek(ev); });
-  hud.track.addEventListener('pointerup', () => { dragging = false; });
-  hud.track.addEventListener('pointercancel', () => { dragging = false; });
+  hud.route.addEventListener('pointerdown', (ev) => {
+    drag = { x: ev.clientX, stop: ev.target.closest('button'), moved: false };
+    hud.route.setPointerCapture(ev.pointerId);
+  });
+  hud.route.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    if (Math.abs(ev.clientX - drag.x) > 6) drag.moved = true;
+    if (drag.moved) seek(ev);
+  });
+  hud.route.addEventListener('pointerup', (ev) => {
+    if (!drag) return;
+    if (!drag.moved) drag.stop ? seekTour(stops[+drag.stop.dataset.i].t + 0.002) : seek(ev);
+    drag = null;
+  });
+  hud.route.addEventListener('pointercancel', () => { drag = null; });
 }
-// Arrastrar sobre la escena gira la mirada
-const look2 = { active: false, x: 0, y: 0 };
+// Sobre la escena: arrastrar gira la mirada; un toque sin arrastre pausa o sigue
+const look2 = { active: false, x: 0, y: 0, moved: 0 };
 canvas.addEventListener('pointerdown', (ev) => {
   if (!walk.on) return;
-  Object.assign(look2, { active: true, x: ev.clientX, y: ev.clientY });
+  Object.assign(look2, { active: true, x: ev.clientX, y: ev.clientY, moved: 0 });
   canvas.setPointerCapture(ev.pointerId);
 });
 canvas.addEventListener('pointermove', (ev) => {
   if (!walk.on || !look2.active) return;
-  walk.dragX -= ((ev.clientX - look2.x) / view.w) * 3.2;
-  walk.dragY -= ((ev.clientY - look2.y) / view.h) * 2.2;
+  const dx = ev.clientX - look2.x, dy = ev.clientY - look2.y;
+  look2.moved += Math.abs(dx) + Math.abs(dy);
+  walk.dragX -= (dx / view.w) * 3.2;
+  walk.dragY -= (dy / view.h) * 2.2;
   look2.x = ev.clientX; look2.y = ev.clientY;
 });
-for (const type of ['pointerup', 'pointercancel']) canvas.addEventListener(type, () => { look2.active = false; });
+canvas.addEventListener('pointerup', () => {
+  if (walk.on && look2.active && look2.moved < 8 && !walk.busy && !walk.ended) togglePlay(true);
+  look2.active = false;
+});
+canvas.addEventListener('pointercancel', () => { look2.active = false; });
 
 /* ------------------------------------------------------------------ */
 /* Modo exploración: disponibilidad y cotizador                        */
@@ -1080,7 +1129,7 @@ window.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') endTour();
     else if (ev.key === 'ArrowRight') stepTour(1);
     else if (ev.key === 'ArrowLeft') stepTour(-1);
-    else if (ev.key === ' ' && !ev.target.closest('button')) { ev.preventDefault(); hud.play.click(); }
+    else if (ev.key === ' ' && !ev.target.closest('button')) { ev.preventDefault(); togglePlay(true); }
     return;
   }
   if (ev.key !== 'Escape' || !ex.on) return;

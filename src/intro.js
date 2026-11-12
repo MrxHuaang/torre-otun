@@ -7,8 +7,7 @@
 import gsap from 'gsap';
 
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Versión liviana para pantallas táctiles o pequeñas: las pinceladas no se redibujan cuadro a cuadro
-// (eso repinta toda la pantalla por CPU); la lámina entera se desliza, que lo hace la GPU sin costo.
+// Versión liviana para pantallas táctiles o pequeñas: menos trazos, sin filtro en la marea y sin seguir al cursor.
 const lite = window.matchMedia('(pointer: coarse), (max-width: 900px)').matches;
 const rnd = (() => { let s = 5; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
@@ -47,11 +46,12 @@ function brush() {
     const y = 20 + rnd() * 860, w = (6 + rnd() * 20) * (1 + depth * 0.9), a = (rnd() - 0.5) * 150, b = (rnd() - 0.5) * 150;
     const x0 = -300 + rnd() * 500, len = 900 + rnd() * 1100;
     const d = `M${x0.toFixed(0)} ${y.toFixed(0)}C${(x0 + len * 0.3).toFixed(0)} ${(y + a).toFixed(0)} ${(x0 + len * 0.62).toFixed(0)} ${(y + b).toFixed(0)} ${(x0 + len).toFixed(0)} ${(y + (a + b) / 3).toFixed(0)}`;
-    const dur = (9 + rnd() * 12).toFixed(1), del = (-rnd() * 12).toFixed(1);
-    layers[depth].push(`<path class="st" pathLength="1" d="${d}" stroke-width="${w.toFixed(0)}" style="animation-duration:${dur}s;animation-delay:${del}s"/>`);
-    if (!lite) layers[depth].push(`<path class="st hair" pathLength="1" d="${d}" stroke-width="${(w * 0.14).toFixed(1)}" transform="translate(${(rnd() * 70).toFixed(0)} ${(w * 0.75).toFixed(0)})" style="animation-duration:${(dur * 0.7).toFixed(1)}s;animation-delay:${del}s"/>`);
+    layers[depth].push(`<path class="st" pathLength="1" d="${d}" stroke-width="${w.toFixed(0)}"/>`);
+    if (!lite) layers[depth].push(`<path class="st hair" pathLength="1" d="${d}" stroke-width="${(w * 0.14).toFixed(1)}" transform="translate(${(rnd() * 70).toFixed(0)} ${(w * 0.75).toFixed(0)})"/>`);
   }
-  return layers.map((l, i) => `<g class="plane p${i}">${l.join('')}</g>`).join('');
+  // Cada plano es una lámina aparte: los trazos quedan fijos y la lámina se desliza (lo mueve la GPU,
+  // sin repintar). Tres láminas a distinto ritmo dan la sensación de pinceladas que fluyen en profundidad.
+  return layers.map((l, i) => `<div class="plane p${i}"><svg class="sheet" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">${l.join('')}</svg></div>`).join('');
 }
 
 function tide() {

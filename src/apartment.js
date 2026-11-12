@@ -24,6 +24,9 @@ const MATS = {
 };
 const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfbf3e4 };   // encendidos: sin sombra
 const GLASS = ['vidrio', 'esmerilado'];
+// Versión del arte del apartamento. Se sube con cada exportación de Blender: como los archivos conservan
+// el nombre, sin esto el navegador seguiría mostrando el modelo y las texturas anteriores desde su caché.
+const ART = '?v=6';
 
 const DETAIL_GLSL = /* glsl */ `
   varying vec3 vWp;
@@ -136,9 +139,13 @@ export function createApartment() {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const cache = {};
-  api.load = Promise.all([
-    new Promise((res, rej) => loader.load('/models/apto.glb', res, undefined, rej)),
-    fetch('/models/apto.json').then((r) => r.json()),
+  // El apartamento no hace falta para ver la torre: se pide con start(), después de entrar,
+  // para no competir con la carga inicial.
+  let begin;
+  api.start = () => begin();
+  api.load = new Promise((res) => { begin = res; }).then(() => Promise.all([
+    new Promise((res, rej) => loader.load('/models/apto.glb' + ART, res, undefined, rej)),
+    fetch('/models/apto.json' + ART).then((r) => r.json()),
   ]).then(([gltf, data]) => {
     gltf.scene.traverse((o) => {
       if (!o.isMesh) return;
@@ -156,7 +163,7 @@ export function createApartment() {
     api.plan = path.map((p) => [p[0], -p[2], Math.atan2(-p[5], p[3])]);
     api.ready = true;
     return api;
-  });
+  }));
 
   // El barrio de la torre, visto desde el piso 14
   let city = null;
@@ -188,14 +195,14 @@ export function createApartment() {
   api.loadReal = (renderer, light) => api.real.pending || (api.real.pending = (async () => {
     // 4K solo en equipos con memoria de sobra; el resto usa 2K, que pesa la cuarta parte
     const size = light || renderer.capabilities.maxTextureSize < 8192 || (navigator.deviceMemory || 8) < 8 ? '2k' : '4k';
-    const tex = (name) => new THREE.TextureLoader().loadAsync(`/models/apto-${name}-${size}.webp`).then((t) => {
+    const tex = (name) => new THREE.TextureLoader().loadAsync(`/models/apto-${name}-${size}.webp${ART}`).then((t) => {
       t.flipY = false;                                   // convención de glTF
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
       return t;
     });
     const [gltf, arq, tel, mob] = await Promise.all([
-      new Promise((res, rej) => loader.load('/models/apto-real.glb', res, undefined, rej)), tex('arq'), tex('tel'), tex('mob'),
+      new Promise((res, rej) => loader.load('/models/apto-real.glb' + ART, res, undefined, rej)), tex('arq'), tex('tel'), tex('mob'),
     ]);
     const rs = new THREE.Scene();
     const HAZE = 0xdfe7ec;
@@ -228,9 +235,9 @@ export function createApartment() {
     rs.add(ground);
     // La textura horneada trae la luz; de cerca se le suma un grano fino propio de cada superficie
     // (revoque, veta, tejido), calculado por sombreador: la pared no se ve lavada al acercarse.
-    const flat = (map, amp, scale) => {
+    const flat = (map, grain) => {
       const m = new THREE.MeshBasicMaterial({ map, fog: false });
-      m.customProgramCacheKey = () => `fino-${amp}-${scale}`;
+      m.customProgramCacheKey = () => `fino-${grain.length}`;
       m.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
@@ -246,14 +253,21 @@ export function createApartment() {
             }`)
           .replace('#include <map_fragment>', `#include <map_fragment>
             {
-              float near = 1.0 - smoothstep(1.5, 6.0, distance(vWp, cameraPosition));
-              float g = fn(vWp * ${scale.toFixed(1)}) * 0.6 + fn(vWp * ${(scale * 3.7).toFixed(1)}) * 0.4 - 0.5;
-              diffuseColor.rgb *= 1.0 + g * ${amp.toFixed(3)} * near;
+              vec3 p = vWp;
+              float dist = distance(p, cameraPosition), near = 1.0 - smoothstep(1.2, 5.0, dist), g = 0.0;
+              ${grain}
+              diffuseColor.rgb *= 1.0 + g;
             }`);
       };
       return m;
     };
-    const baked = { arq: flat(arq, 0.07, 90), tel: flat(tel, 0.12, 320), mob: flat(mob, 0.06, 140) };   // arquitectura, textiles, resto del mobiliario
+    // Cada grupo tiene su superficie: revoque con manchas suaves, veta fina a lo largo, y trama de tejido.
+    const GRAIN = {
+      arq: 'g = (fn(p * 95.0) * 0.6 + fn(p * 340.0) * 0.4 - 0.5) * 0.035 * near + (fn(p * 1.4) - 0.5) * 0.035;',
+      mob: 'g = ((fn(vec3(p.x * 12.0, p.y * 150.0, p.z * 150.0)) + fn(vec3(p.x * 150.0, p.y * 150.0, p.z * 12.0))) * 0.5 - 0.5) * 0.085 * near;',
+      tel: 'float close = 1.0 - smoothstep(0.6, 2.4, dist); g = (sin(p.x * 760.0) * sin(p.y * 760.0) + sin(p.z * 760.0) * sin(p.y * 760.0)) * 0.03 * close + (fn(p * 240.0) - 0.5) * 0.09 * near;',
+    };
+    const baked = { arq: flat(arq, GRAIN.arq), tel: flat(tel, GRAIN.tel), mob: flat(mob, GRAIN.mob) };   // arquitectura, textiles, resto del mobiliario
     const glass = {
       vidrio: new THREE.MeshBasicMaterial({ color: 0xdfeaf0, transparent: true, opacity: 0.1, depthWrite: false, fog: false }),
       esmerilado: new THREE.MeshBasicMaterial({ color: 0xeef3f4, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),

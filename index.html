@@ -9,7 +9,15 @@
   <meta name="theme-color" content="#1b1b1b" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Las fuentes no bloquean el primer pintado: se cargan aparte y se aplican al llegar -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" /></noscript>
+  <!-- La torre se pide desde ya, sin esperar a que el código la solicite -->
+  <link rel="preload" as="fetch" crossorigin href="/models/piso.glb" />
+  <link rel="preload" as="fetch" crossorigin href="/models/podio.glb" />
+  <link rel="preload" as="fetch" crossorigin href="/models/corona.glb" />
+  <link rel="preload" as="fetch" crossorigin href="/models/entorno.glb" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body class="locked">
@@ -21,7 +29,7 @@
     <div class="gate-half up"></div>
     <div class="gate-half down"></div>
     <div class="gate-light" aria-hidden="true"></div>
-    <svg class="gate-brush" id="gateBrush" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+    <div class="gate-brush" id="gateBrush" aria-hidden="true"></div>
     <p class="gate-word">Torre Otún</p>
     <div class="gate-emblem-wrap"><svg class="gate-emblem" id="gateEmblem" viewBox="0 0 200 200" role="img" aria-label="Emblema de Torre Otún"></svg></div>
     <svg class="gate-rule" viewBox="0 0 320 12" aria-hidden="true"><path id="gateRule" pathLength="1" d="M2 6C40 3 82 9 120 6S200 4 242 7S300 5 318 6" /></svg>
@@ -184,21 +192,25 @@
     </div>
     <button class="btn small ghost tour-exit" id="tourExit">← Volver a la torre</button>
     <div class="tour-plate">
-      <p class="eyebrow">Tipo A · Piso 14 <em id="tourCount"></em></p>
+      <p class="eyebrow">Tipo A · Piso 14</p>
       <h2 class="display mid" id="tourTitle" aria-live="polite">Sala comedor</h2>
       <p class="copy" id="tourText"></p>
     </div>
-    <div class="tour-ctl">
-      <button id="tourPrev" aria-label="Espacio anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <!-- Sin controles de video: una línea con los espacios del apartamento. Tocar la escena pausa o sigue. -->
+    <div class="tour-bar">
       <button id="tourPlay" class="tour-play" aria-label="Pausar"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-pause" d="M8 5v14M16 5v14"/><path class="i-play" d="M8 5l11 7-11 7z"/></svg></button>
-      <button id="tourNext" aria-label="Siguiente espacio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-      <div class="tour-track" id="tourTrack" role="slider" aria-label="Avance del recorrido"><i><em id="tourFill"></em></i><u id="tourKnob"></u></div>
+      <nav class="tour-route" id="tourRoute" aria-label="Espacios del apartamento">
+        <i class="line"><em id="tourFill"></em></i>
+        <i class="me" id="tourMe"></i>
+        <div class="tour-stops" id="tourStops"></div>
+      </nav>
     </div>
+    <i class="tour-pulse" id="tourPulse" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="i-pause" d="M8 5v14M16 5v14"/><path class="i-play" d="M8 5l11 7-11 7z"/></svg></i>
     <div class="tour-mode" role="group" aria-label="Estilo del recorrido">
       <button data-style="real" class="on" aria-pressed="true">Realista</button>
       <button data-style="ink" aria-pressed="false">Tinta</button>
     </div>
-    <p class="tour-hint">Arrastra para mirar alrededor</p>
+    <p class="tour-hint">Arrastra para mirar · toca para pausar</p>
   </div>
 
   <!-- Marco de viñeta y sello que invita a girar la torre -->
