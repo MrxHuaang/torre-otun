@@ -504,7 +504,7 @@ function auxVisibility(on) {
 }
 
 const veil = $('#veil'), spinBadge = $('#spinBadge');
-let viewShift = 0.2, spun = false, last = performance.now();
+let viewShift = 0.2, spun = false, last = performance.now(), gateFrames = 0;
 
 /* ------------------------------------------------------------------ */
 /* Cuadro a cuadro                                                     */
@@ -513,6 +513,8 @@ let viewShift = 0.2, spun = false, last = performance.now();
 function render() {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  // Con la portada encima no se ve la escena: se dibuja 1 de cada 30 cuadros, solo para dejar todo compilado.
+  if (state.intro > 0.999 && ++gateFrames % 30) return;
   adapt(dt);
   mouse.sx += (mouse.x - mouse.sx) * 0.05;
   mouse.sy += (mouse.y - mouse.sy) * 0.05;

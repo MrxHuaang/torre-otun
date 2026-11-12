@@ -99,6 +99,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .gate-brush .st.hair { stroke: #3a3a3a; stroke-dasharray: 0.3 0.7; opacity: 0.7; }
 @keyframes flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
 
+/* Portada liviana (táctil o pantalla pequeña): trazos fijos y la lámina entera se desliza por GPU */
+.gate.lite .gate-brush .st { animation: none; stroke-dasharray: none; }
+.gate.lite .gate-brush { will-change: transform; animation: drift 14s ease-in-out infinite alternate; }
+.gate.lite .gate-brush .plane, .gate.lite .gate-title h2, .gate.lite .gate-title .w i { transform: none; will-change: auto; }
+.gate.lite .gate-title .w i::before { display: none; }
+.gate.lite .gate-light { background: radial-gradient(circle 60vmax at 50% 50%, rgba(246, 245, 241, 0.1), transparent 70%); }
+@keyframes drift { from { transform: translate3d(-3%, 0, 0); } to { transform: translate3d(3%, 0, 0); } }
 .gate-word { position: absolute; top: 34px; left: 0; right: 0; text-align: center; font-family: var(--display); font-weight: 600; font-size: 21px; letter-spacing: 0.08em; text-transform: uppercase; }
 .gate-emblem-wrap { position: absolute; inset: 0; pointer-events: none; transform: translate(calc(var(--mx) * 26px), calc(var(--my) * 16px)); }
 .gate-emblem { --size: min(36vh, 320px); position: absolute; left: 50%; top: 50%; width: var(--size); height: var(--size); margin: calc(var(--size) / -2) 0 0 calc(var(--size) / -2); overflow: visible; }
@@ -394,5 +401,5 @@ input[type='range']::-moz-range-thumb { width: 13px; height: 13px; background: v
 
 @media (prefers-reduced-motion: reduce) {
   .line > span, .rv { transition-duration: 0.01s; }
-  .gate-brush .st, .spin-badge svg, .spin-badge .hand, .tour-hint { animation: none; }
+  .gate-brush, .gate-brush .st, .spin-badge svg, .spin-badge .hand, .tour-hint { animation: none; }
 }

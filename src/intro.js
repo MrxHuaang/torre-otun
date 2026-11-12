@@ -7,6 +7,9 @@
 import gsap from 'gsap';
 
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Versión liviana para pantallas táctiles o pequeñas: las pinceladas no se redibujan cuadro a cuadro
+// (eso repinta toda la pantalla por CPU); la lámina entera se desliza, que lo hace la GPU sin costo.
+const lite = window.matchMedia('(pointer: coarse), (max-width: 900px)').matches;
 const rnd = (() => { let s = 5; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
 function emblem() {
@@ -39,14 +42,14 @@ function emblem() {
 // Pinceladas en tres planos: lejos (finas, oscuras), medio y cerca (gruesas, más claras).
 function brush() {
   const layers = [[], [], []];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < (lite ? 14 : 30); i++) {
     const depth = i % 3;
     const y = 20 + rnd() * 860, w = (6 + rnd() * 20) * (1 + depth * 0.9), a = (rnd() - 0.5) * 150, b = (rnd() - 0.5) * 150;
     const x0 = -300 + rnd() * 500, len = 900 + rnd() * 1100;
     const d = `M${x0.toFixed(0)} ${y.toFixed(0)}C${(x0 + len * 0.3).toFixed(0)} ${(y + a).toFixed(0)} ${(x0 + len * 0.62).toFixed(0)} ${(y + b).toFixed(0)} ${(x0 + len).toFixed(0)} ${(y + (a + b) / 3).toFixed(0)}`;
     const dur = (9 + rnd() * 12).toFixed(1), del = (-rnd() * 12).toFixed(1);
     layers[depth].push(`<path class="st" pathLength="1" d="${d}" stroke-width="${w.toFixed(0)}" style="animation-duration:${dur}s;animation-delay:${del}s"/>`);
-    layers[depth].push(`<path class="st hair" pathLength="1" d="${d}" stroke-width="${(w * 0.14).toFixed(1)}" transform="translate(${(rnd() * 70).toFixed(0)} ${(w * 0.75).toFixed(0)})" style="animation-duration:${(dur * 0.7).toFixed(1)}s;animation-delay:${del}s"/>`);
+    if (!lite) layers[depth].push(`<path class="st hair" pathLength="1" d="${d}" stroke-width="${(w * 0.14).toFixed(1)}" transform="translate(${(rnd() * 70).toFixed(0)} ${(w * 0.75).toFixed(0)})" style="animation-duration:${(dur * 0.7).toFixed(1)}s;animation-delay:${del}s"/>`);
   }
   return layers.map((l, i) => `<g class="plane p${i}">${l.join('')}</g>`).join('');
 }
@@ -60,6 +63,8 @@ function tide() {
   for (let i = 0; i < 9; i++) {
     blobs.push(`<circle class="bl drop" cx="${(rnd() * 1600).toFixed(0)}" cy="${(20 + rnd() * 50).toFixed(0)}" r="${(8 + rnd() * 18).toFixed(0)}"/>`);
   }
+  // El filtro que funde las gotas es caro: en la versión liviana el borde va sin fundir.
+  if (lite) return `<g><rect x="-100" y="130" width="1800" height="1200"/>${blobs.join('')}</g>`;
   return `<defs><filter id="goo" x="-5%" y="-20%" width="110%" height="140%">
       <feGaussianBlur in="SourceGraphic" stdDeviation="13"/>
       <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 26 -11"/></filter></defs>
@@ -68,6 +73,7 @@ function tide() {
 
 export function createIntro({ getProgress, onEnter }) {
   const gate = document.querySelector('#gate');
+  gate.classList.toggle('lite', lite);
   const $ = (sel) => gate.querySelector(sel);
   $('#gateEmblem').innerHTML = emblem();
   $('#gateBrush').innerHTML = brush();
@@ -91,7 +97,7 @@ export function createIntro({ getProgress, onEnter }) {
     .to('#gateEmblem .ray', { strokeDashoffset: 0, duration: 0.25, ease: 'none', stagger: 0.012 }, 0.1)
     .to('#gateEmblem .tw', { strokeDashoffset: 0, duration: 0.2, ease: 'none', stagger: 0.07 }, 0.3)
     .to('#gateEmblem .fl', { strokeDashoffset: 0, duration: 0.12, ease: 'none', stagger: 0.04 }, 0.55);
-  if (!reduce) gsap.to('#gateEmblem .rays', { scale: 1.06, svgOrigin: '100 124', duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1 });
+  if (!reduce && !lite) gsap.to('#gateEmblem .rays', { scale: 1.06, svgOrigin: '100 124', duration: 3.2, ease: 'sine.inOut', yoyo: true, repeat: -1 });
 
   // Cursor: dos valores suavizados (-1..1) que el CSS usa en todas las capas
   const m = { x: 0, y: 0, tx: 0, ty: 0, bx: 0, by: 0, tbx: 0, tby: 0 };
@@ -115,7 +121,7 @@ export function createIntro({ getProgress, onEnter }) {
     gate.style.setProperty('--bx', `${m.bx.toFixed(2)}px`);
     gate.style.setProperty('--by', `${m.by.toFixed(2)}px`);
   };
-  if (!reduce) {
+  if (!reduce && !lite) {
     window.addEventListener('pointermove', onMove);
     gsap.ticker.add(follow);
   }
@@ -123,7 +129,7 @@ export function createIntro({ getProgress, onEnter }) {
   let p = 0, done = false;
   const tick = () => {
     const real = Math.min(1, getProgress());
-    p = Math.min(1, p + Math.max(0.0025, (real - p) * 0.06));
+    p = Math.min(1, p + Math.max(lite ? 0.009 : 0.005, (real - p) * 0.06));   // en móvil el emblema no se demora de más
     if (p > real && real < 1) p = real;
     draw.progress(p);
     rule.style.strokeDashoffset = 1 - p;
@@ -152,7 +158,7 @@ export function createIntro({ getProgress, onEnter }) {
   btn.addEventListener('click', () => {
     btn.disabled = true;
     const d = reduce ? 0.01 : 1;
-    if (!reduce) {
+    if (!reduce && !lite) {
       gate.querySelectorAll('.bl').forEach((c) => gsap.to(c, {
         attr: { cy: `+=${(Math.random() - 0.5) * 70}`, r: `+=${(Math.random() - 0.3) * 26}` },
         duration: 0.5 + Math.random() * 0.7, yoyo: true, repeat: 5, ease: 'sine.inOut',
