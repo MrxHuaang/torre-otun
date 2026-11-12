@@ -19,3 +19,4 @@ public/tour/_tmp/
 blender/*.txt
 
 .vercel
+blender/exp_patch.py

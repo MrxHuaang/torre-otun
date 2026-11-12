@@ -21,17 +21,17 @@ Sala de ventas viva para un edificio que todavía no existe: recórrelo por fuer
 - **Se puede tocar.** Arrastra la torre para girarla. Toca un piso y se encienden sus ventanas. Al pasar el cursor, cada piso dice cuántos apartamentos tiene libres.
 - **Estructura a la vista.** La torre se desarma piso a piso de arriba hacia abajo y deja ver columnas, núcleo de muros, disipadores y pilotes, con anotaciones técnicas.
 - **Disponibilidad y cotizador.** Modo exploración con cada apartamento pintado por estado, ficha con plano, precio y un cotizador de cuota inicial y plazo.
-- **Recorrido interior continuo.** 760 cuadros pre-renderizados en Blender: entras por la puerta, cocina, sala, balcón, pasillo, baño, alcobas. El scroll decide el cuadro y un minimapa marca dónde vas.
+- **Recorrido interior en vivo.** El apartamento es 3D real, no un video: entras por la puerta y pasas por cocina, sala, balcón, pasillo, baño y alcobas. Se reproduce solo, se puede pausar, saltar de espacio, arrastrar la línea de avance y mirar alrededor. Un minimapa marca dónde vas.
 - **Barrio con sentido.** Casas con techo a dos aguas, edificios bajos con locales, calles, árboles y personas a escala.
 - **Barra de avance propia.** Los capítulos son paradas; se puede hacer clic o arrastrar.
-- **Carga liviana.** Modelos comprimidos con meshopt (6.5 MB a 1.2 MB). El recorrido se descarga en segundo plano mientras ves la torre, y en móvil o con ahorro de datos usa una versión de 6 MB.
+- **Carga liviana y para cualquier equipo.** Todo el 3D pesa 1.5 MB (modelos comprimidos con meshopt). Solo usa texturas de 8 bits, así corre en móviles y Safari, y la resolución baja sola un escalón si el equipo no sostiene el ritmo.
 - Respeta `prefers-reduced-motion`.
 
 ## Cómo está hecho
 
 **Exterior, en tiempo real.** La escena se dibuja dos veces por cuadro: una con luz y otra que guarda normales y profundidad. Un sombreador las combina en papel, tinta, trama y color plano, y las líneas vectoriales se pintan encima respetando la profundidad. Está en [`src/ink.js`](src/ink.js) y documentado en [`docs/estilo-tinta.md`](docs/estilo-tinta.md) para reutilizarlo en otros proyectos.
 
-**Interior, pre-renderizado.** El apartamento se modela por script en Blender ([`blender/apartamento.py`](blender/apartamento.py)). Por cada cuadro salen cuatro tandas (luz, color propio del material, normales con profundidad y trazos de material como vetas y juntas) que [`blender/tinta.py`](blender/tinta.py) combina con numpy en una lámina a tinta. En el navegador ([`src/tour.js`](src/tour.js)) las imágenes se guardan comprimidas, se decodifica solo una ventana alrededor del cuadro actual y se dibujan en la GPU.
+**Interior, también en tiempo real.** El apartamento se modela por script en Blender ([`blender/apartamento.py`](blender/apartamento.py)) y se exporta a glTF junto con el camino de la cámara. En el navegador ([`src/apartment.js`](src/apartment.js)) recibe luz, sombra del sol y los trazos de cada material (vetas, juntas de piso y baldosa, pliegues de tela), dibujados por sombreador con ancho constante en pantalla: el trazo queda definido a cualquier resolución.
 
 **Torre y barrio.** [`blender/torre.py`](blender/torre.py) genera el piso tipo, el podio, la corona y el barrio, y los exporta a glTF.
 
@@ -53,7 +53,7 @@ blender --background --factory-startup --python blender/torre.py -- public/model
 ```
 
 ```bash
-blender --background --factory-startup --python blender/apartamento.py -- ink CYCLES 0 1024 32 public/tour 0 760
+blender --background --factory-startup --python blender/apartamento.py -- glb CYCLES 0 0 0 public/models
 ```
 
 Vite, three.js, GSAP y Lenis, sin framework. Tipografías [Cormorant Garamond](https://fonts.google.com/specimen/Cormorant+Garamond) y [Jost](https://fonts.google.com/specimen/Jost).

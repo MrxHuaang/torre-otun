@@ -12,6 +12,7 @@ MODE, ENGINE = arg(0, 'still'), arg(1, 'CYCLES')
 N, W, SAMPLES = int(arg(2, 3)), int(arg(3, 960)), int(arg(4, 24))
 OUT = arg(5, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out'))
 random.seed(7)
+LOW = MODE == 'glb'   # exportar para tiempo real: sin biseles ni subdivisión fina
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -268,6 +269,8 @@ def obj(name, bm, mat, loc=(0, 0, 0), rot=(0, 0, 0), smooth=True):
 
 
 def bevel(ob, w, seg=2):
+    if LOW:
+        return ob
     m = ob.modifiers.new('bisel', 'BEVEL')
     m.width, m.segments, m.limit_method = w, seg, 'ANGLE'
     m.angle_limit = math.radians(40)
@@ -297,14 +300,15 @@ def puff(size, loc, mat, rot=(0, 0, 0), level=2, name='cojin'):
     bmesh.ops.scale(bm, vec=size, verts=bm.verts)
     ob = obj(name, bm, mat, loc, rot)
     s = ob.modifiers.new('sub', 'SUBSURF')
-    s.levels = s.render_levels = level
+    s.levels = s.render_levels = 1 if LOW else level
     return ob
 
 
 def soft(size, loc, mat, rot=(0, 0, 0), name='tapizado'):
     """Tapizado entallado: canto redondeado pequeño, caras planas."""
     ob = box(size, loc, mat, max(0.012, min(0.035, min(size) * 0.18)), rot, name)
-    ob.modifiers['bisel'].segments = 4
+    if not LOW:
+        ob.modifiers['bisel'].segments = 4
     return ob
 
 
@@ -1228,7 +1232,42 @@ except Exception:
     pass
 os.makedirs(OUT, exist_ok=True)
 
-if MODE.startswith('ink'):
+if MODE == 'glb':
+    # Exporta el apartamento (sin el paisaje) y la ruta de cámara para el recorrido en vivo.
+    import json
+    skip = {'suelo', 'ciudad', 'calles', 'arboles', 'cordillera'}
+    bpy.ops.object.select_all(action='DESELECT')
+    objs = [o for o in scene.objects if o.type == 'MESH' and o.name.split('.')[0] not in skip]
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'apto.glb'), export_format='GLB', use_selection=True,
+                              export_apply=True, export_yup=True, export_lights=False, export_cameras=False)
+    NP = 900
+    pts = []
+    for k in range(NP + 1):
+        want = k / NP * ARC[-1]
+        lo, hi = 0, NARC
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if ARC[mid] < want:
+                lo = mid
+            else:
+                hi = mid
+        u = lo / NARC
+        p, d = spline(POS, u), look_dir(u)
+        pts.append([round(p.x, 3), round(p.z, 3), round(-p.y, 3), round(d.x, 4), round(d.z, 4), round(-d.y, 4)])   # a ejes de three.js
+    n = len(WAY) - 1
+    marks = []
+    for i, w in enumerate(WAY):
+        if w[2]:
+            u = i / n
+            k = next((k for k in range(NARC + 1) if k / NARC >= u - 1e-6), NARC)
+            marks.append({'t': round(ARC[k] / ARC[-1], 4), 'title': w[2][0], 'text': w[2][1]})
+    with open(os.path.join(OUT, 'apto.json'), 'w', encoding='utf-8') as fh:
+        json.dump({'path': pts, 'marks': marks, 'length': round(ARC[-1], 2)}, fh, ensure_ascii=False)
+    print('EXPORT apto', len(objs), 'objetos', os.path.getsize(os.path.join(OUT, 'apto.glb')) // 1024, 'KB', flush=True)
+elif MODE.startswith('ink'):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import tinta
     tinta.run(MODE, SEGMENTS, pose, cam, W, SAMPLES, OUT, int(arg(6, 0)))

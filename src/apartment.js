@@ -1,0 +1,189 @@
+// Apartamento tipo A en 3D, para recorrerlo en vivo.
+// El modelo sale de Blender (blender/apartamento.py, modo `glb`) y aquí se le da luz,
+// sombra y los trazos propios de cada material (vetas, juntas, tejido), dibujados por sombreador:
+// el trazo queda nítido a cualquier tamaño de pantalla y a 60 cuadros por segundo.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+// Color de cada material (mismos nombres que en Blender) y qué trazo lleva.
+const MATS = {
+  pared: [0xf1ece3], techo: [0xfaf8f4], papel: [0xf5f0e6], cortina: [0xf6f2ea],
+  // piso claro: queda en papel con sus juntas y el ocre se reserva para los muebles
+  piso: [0xe2d8c6, 'PLANKS'], roble: [0xa67f52, 'WOOD'], nogal: [0x6b4a33, 'WOOD'], ocre: [0xb8863b],
+  piedra: [0xf2efe9, 'STONE'], porcelanato: [0xd6d1c8, 'TILE'], baldosa: [0xd9d3c7, 'TILE'], ceramica: [0xe9e3d8],
+  mueble: [0x5c6963], fieltro: [0x7b776f], metal: [0x161616], vitro: [0x050505],
+  laton: [0xc9a25a], acero: [0xc8c8c8], espejo: [0xd9dde0], barro: [0xb67d5c],
+  lino: [0xd8cdbb, 'FABRIC'], cojin: [0xe9e2d6, 'FABRIC'], duvet: [0xf4f1ea, 'FABRIC'], toalla: [0xe8e2d6, 'FABRIC'],
+  lana: [0xe4dccd, 'FABRIC'], lana2: [0xa98a68, 'FABRIC'], terracota: [0xb1603c, 'FABRIC'], boucle: [0xb1603c, 'FABRIC'],
+  verde: [0x3b5045, 'FABRIC'], terciopelo: [0x35493f, 'FABRIC'], hoja: [0x3f6a3a],
+  naranja: [0xd98b2b], limon: [0xd9b93a],
+  libro0: [0x8a3b2c], libro1: [0x2f4a3f], libro2: [0xd9cdb8], libro3: [0x1f2a36],
+  libro4: [0xb8863b], libro5: [0xe9e2d6], libro6: [0x6b4a36], libro7: [0x394f63],
+};
+const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfbf3e4 };   // encendidos: sin sombra
+const GLASS = ['vidrio', 'esmerilado'];
+
+const DETAIL_GLSL = /* glsl */ `
+  varying vec3 vWp;
+  float h31(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float vn(vec3 x) {
+    vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h31(i), h31(i + vec3(1, 0, 0)), f.x), mix(h31(i + vec3(0, 1, 0)), h31(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(h31(i + vec3(0, 0, 1)), h31(i + vec3(1, 0, 1)), f.x), mix(h31(i + vec3(0, 1, 1)), h31(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+  }
+  // Línea de ancho constante en pantalla donde el valor cruza 0.5: trazo fino y definido.
+  float iso(float n, float px) { float w = fwidth(n) * px; return 1.0 - smoothstep(w * 0.55, w * 1.25, abs(n - 0.5)); }
+  float inkDetail(vec3 p) {
+    float fade = 1.0 - smoothstep(5.0, 13.0, distance(p, cameraPosition));
+    float k = 0.0;
+    #if defined(DETAIL_WOOD) || defined(DETAIL_PLANKS)
+      k = iso(vn(vec3(p.x * 0.55, p.y * 6.0, p.z * 6.0)), 1.0) * 0.75;                 // vetas a lo largo de X
+    #endif
+    #ifdef DETAIL_PLANKS
+      k *= 0.55;
+      float near = 1.0 - smoothstep(3.5, 9.0, distance(p, cameraPosition));              // de lejos las juntas se funden
+      float row = floor(p.z / 0.2);
+      float dz = 0.1 - abs(fract(p.z / 0.2) - 0.5) * 0.2;                                // junta entre hileras
+      k = max(k, (1.0 - smoothstep(fwidth(p.z) * 0.35, fwidth(p.z) * 0.95, dz)) * 0.8 * near);
+      float xx = p.x + h31(vec3(row, 1.0, 2.0)) * 1.8;
+      float dx = 0.9 - abs(fract(xx / 1.8) - 0.5) * 1.8;                                 // testa de cada tabla
+      k = max(k, (1.0 - smoothstep(fwidth(p.x) * 0.35, fwidth(p.x) * 0.95, dx)) * 0.8 * near);
+    #endif
+    #ifdef DETAIL_STONE
+      vec3 q = p * 1.3 + 1.6 * vec3(vn(p * 0.9), vn(p * 0.9 + 7.0), vn(p * 0.9 + 13.0));
+      k = iso(vn(q) * 0.6 + vn(q * 2.1) * 0.4, 0.9) * 0.7;                               // vetas del mármol
+    #endif
+    #ifdef DETAIL_TILE
+      vec3 n = abs(normalize(cross(dFdx(p), dFdy(p))));                                   // la junta solo se dibuja en el plano de la cara
+      vec3 g = abs(fract(p / 0.6 + 0.5) - 0.5) * 0.6, w = fwidth(p);
+      vec3 j = (1.0 - smoothstep(w * 0.6, w * 1.4, g)) * step(n, vec3(0.6));
+      k = max(j.x, max(j.y, j.z)) * 0.8;
+    #endif
+    #ifdef DETAIL_FABRIC
+      // pliegues: hebras finas y onduladas, solo por zonas
+      k = iso(vn(vec3(p.x * 26.0, p.y * 3.0, p.z * 26.0)), 0.8) * smoothstep(0.5, 0.68, vn(p * 2.4)) * 0.6;
+    #endif
+    return 1.0 - k * fade * 0.97;
+  }`;
+
+function material(name) {
+  if (GLOW[name]) return new THREE.MeshBasicMaterial({ color: GLOW[name] });
+  if (GLASS.includes(name)) return new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false });
+  const [color, kind] = MATS[name] || [0xe8e4dc];
+  const m = new THREE.MeshLambertMaterial({ color });
+  if (kind) {
+    m.defines = { [`DETAIL_${kind}`]: '' };
+    m.customProgramCacheKey = () => `detail-${kind}`;
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>\n${DETAIL_GLSL}`)
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= inkDetail(vWp);');
+    };
+  }
+  return m;
+}
+
+export function createApartment() {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(64, 1, 0.06, 1500);
+  const api = { scene, camera, ready: false, marks: [], plan: [], length: 60 };
+  let path = [];
+
+  // Luz: cielo suave, sol entrando por el ventanal (oriente) con sombra, y lámparas cálidas
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d2c4, 1.15));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.5);
+  sun.target.position.set(5.5, 0, -5.8);
+  sun.position.copy(sun.target.position).add(new THREE.Vector3(1, 0.46, -0.34).normalize().multiplyScalar(36));
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 9, bottom: -9, near: 1, far: 80 });
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.03;
+  scene.add(sun, sun.target);
+  for (const [x, y, z, power] of [[2.9, 1.7, -2.05, 5], [3.4, 1.75, -5.1, 4], [1.2, 2.3, -9.4, 6], [4.3, 2.3, -10, 4], [8, 2.3, -10, 5], [3.6, 2.4, -7.75, 5]]) {
+    const l = new THREE.PointLight(0xffffff, power, 7, 2);
+    l.position.set(x, y, z);
+    scene.add(l);
+  }
+
+  // Cordillera al fondo: siluetas de papel que la tinta contornea
+  {
+    const mat = new THREE.MeshBasicMaterial({ color: 0xf6f5f1, side: THREE.DoubleSide });
+    const ridge = (x, base, amp, seed) => {
+      const N = 160, pos = [], idx = [];
+      for (let i = 0; i <= N; i++) {
+        const z = -1000 + (i / N) * 2000;
+        const h = base + amp * (0.5 + 0.5 * Math.sin(z * 0.0052 + seed)) * (0.62 + 0.38 * Math.sin(z * 0.017 + seed * 3)) + amp * 0.1 * Math.sin(z * 0.06 + seed);
+        pos.push(x, h, z, x, -260, z);
+        if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setIndex(idx);
+      g.computeVertexNormals();
+      scene.add(new THREE.Mesh(g, mat));
+    };
+    ridge(900, 60, 300, 4);
+    ridge(680, 10, 190, 2.4);
+    ridge(480, -30, 110, 1);
+  }
+
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const cache = {};
+  api.load = Promise.all([
+    new Promise((res, rej) => loader.load('/models/apto.glb', res, undefined, rej)),
+    fetch('/models/apto.json').then((r) => r.json()),
+  ]).then(([gltf, data]) => {
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const name = o.material.name;
+      o.material = cache[name] || (cache[name] = material(name));
+      if (GLASS.includes(name)) { o.layers.set(2); return; }        // fuera del pase de contornos
+      o.castShadow = !GLOW[name];
+      o.receiveShadow = !GLOW[name];
+    });
+    scene.add(gltf.scene);
+    path = data.path;
+    api.marks = data.marks;
+    api.length = data.length;
+    // Para el minimapa: planta en metros (x, y) y rumbo
+    api.plan = path.map((p) => [p[0], -p[2], Math.atan2(-p[5], p[3])]);
+    api.ready = true;
+    return api;
+  });
+
+  // El barrio de la torre, visto desde el piso 14
+  api.setCity = (barrio) => {
+    const c = barrio.clone();
+    c.position.set(-5, -43.4, 6);
+    scene.add(c);
+  };
+
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), right = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0);
+  // t: 0..1 del recorrido. lookX/lookY (-1..1): la mirada sigue un poco al cursor.
+  api.pose = (t, lookX = 0, lookY = 0) => {
+    if (!path.length) return;
+    const f = Math.min(Math.max(t, 0), 1) * (path.length - 1);
+    const i = Math.min(Math.floor(f), path.length - 2), k = f - i;
+    const p0 = path[i], p1 = path[i + 1];
+    a.set(p0[0], p0[1], p0[2]).lerp(b.set(p1[0], p1[1], p1[2]), k);
+    d.set(p0[3], p0[4], p0[5]).lerp(b.set(p1[3], p1[4], p1[5]), k).normalize();
+    right.crossVectors(d, UP).normalize();
+    d.addScaledVector(right, lookX * 0.32).addScaledVector(UP, -lookY * 0.18).normalize();
+    camera.position.copy(a);
+    camera.lookAt(b.copy(a).add(d));
+  };
+
+  api.resize = (w, h) => {
+    camera.aspect = w / h;
+    camera.fov = h > w ? 82 : 64;
+    camera.updateProjectionMatrix();
+  };
+  return api;
+}

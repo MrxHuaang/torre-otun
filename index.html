@@ -6,7 +6,7 @@
   <title>Torre Otún | Sala de ventas viva</title>
   <meta name="description" content="Demo: recorrido guiado, estructura a la vista, disponibilidad y cotizador para un proyecto de vivienda sobre planos." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <meta name="theme-color" content="#111111" />
+  <meta name="theme-color" content="#1b1b1b" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -39,10 +39,10 @@
       <span>Torre Otún</span>
     </a>
     <span class="top-actions">
-      <a class="btn small" href="#cierre" data-scroll>Agendar visita</a>
+      <button class="btn small js-tour">Recorrer por dentro</button>
+      <a class="btn small ghost top-visit" href="#cierre" data-scroll>Agendar visita</a>
     </span>
   </header>
-  <div class="progress" hidden><i id="progressBar"></i></div>
 
   <!-- Barra de avance propia: capítulos como paradas, se puede arrastrar -->
   <nav class="scroller" id="scroller" aria-label="Capítulos">
@@ -59,7 +59,7 @@
   <div class="labels" id="labels" aria-hidden="true"></div>
 
   <main id="journey">
-    <section class="chapter" id="hero" style="--h:240vh">
+    <section class="chapter" id="hero" style="--h:195vh">
       <div class="block left mid">
         <p class="eyebrow rv">Pinares, Pereira. Entrega 2029</p>
         <h1 class="display">
@@ -67,11 +67,14 @@
           <span class="line"><span>Otún</span></span>
         </h1>
         <p class="lead rv" style="--d:.25s">56 apartamentos frente a la cordillera. Recórrela completa antes de que exista.</p>
-        <button class="btn rv js-explore" style="--d:.4s">Ver disponibilidad</button>
+        <div class="row rv" style="--d:.4s">
+          <button class="btn js-tour">Recorrer por dentro</button>
+          <button class="btn ghost js-explore">Ver disponibilidad</button>
+        </div>
       </div>
     </section>
 
-    <section class="chapter" id="lugar" style="--h:320vh">
+    <section class="chapter" id="lugar" style="--h:260vh">
       <div class="block left">
         <div class="plate rv">
           <h2 class="display mid">
@@ -83,7 +86,7 @@
       </div>
     </section>
 
-    <section class="chapter" id="estructura" style="--h:400vh">
+    <section class="chapter" id="estructura" style="--h:325vh">
       <div class="block right">
         <div class="plate wide rv">
           <h2 class="display mid">
@@ -106,7 +109,7 @@
       </div>
     </section>
 
-    <section class="chapter" id="residencias" style="--h:320vh">
+    <section class="chapter" id="residencias" style="--h:260vh">
       <div class="block left">
         <div class="plate rv">
           <h2 class="display mid">
@@ -120,13 +123,21 @@
       </div>
     </section>
 
-    <section class="chapter" id="interior" style="--h:1856vh">
-      <div class="block left low">
+    <section class="chapter" id="interior" style="--h:195vh">
+      <div class="block left">
         <div class="plate rv">
           <p class="eyebrow">Apartamento tipo A, piso 14</p>
-          <h2 class="display mid tour-title" id="tourTitle">Sala comedor</h2>
-          <p class="copy" id="tourText">Sala, comedor y cocina en un solo espacio.</p>
-          <i class="tour-bar"><em id="tourStep"></em></i>
+          <h2 class="display mid">
+            <span class="line"><span>Camínalo</span></span>
+            <span class="line"><span>por dentro.</span></span>
+          </h2>
+          <p class="copy">Entra por la puerta y recorre cocina, sala, balcón y alcobas. Dura un minuto y puedes mirar hacia donde quieras.</p>
+          <ul class="facts three">
+            <li><b>114 m²</b><span>Área</span></li>
+            <li><b>2</b><span>Alcobas</span></li>
+            <li><b>Oriente</b><span>Vista a la cordillera</span></li>
+          </ul>
+          <button class="btn js-tour">Iniciar recorrido</button>
         </div>
       </div>
     </section>
@@ -160,6 +171,23 @@
     <aside class="panel" id="panel"></aside>
   </div>
 
+  <!-- Recorrido interior: el apartamento en 3D, con controles propios -->
+  <div class="tour" id="tour" aria-hidden="true">
+    <button class="btn small ghost tour-exit" id="tourExit">← Volver a la torre</button>
+    <div class="tour-plate">
+      <p class="eyebrow">Tipo A · Piso 14 <em id="tourCount"></em></p>
+      <h2 class="display mid" id="tourTitle" aria-live="polite">Sala comedor</h2>
+      <p class="copy" id="tourText"></p>
+    </div>
+    <div class="tour-ctl">
+      <button id="tourPrev" aria-label="Espacio anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button id="tourPlay" class="tour-play" aria-label="Pausar"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-pause" d="M8 5v14M16 5v14"/><path class="i-play" d="M8 5l11 7-11 7z"/></svg></button>
+      <button id="tourNext" aria-label="Siguiente espacio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      <div class="tour-track" id="tourTrack" role="slider" aria-label="Avance del recorrido"><i><em id="tourFill"></em></i><u id="tourKnob"></u></div>
+    </div>
+    <p class="tour-hint">Arrastra para mirar alrededor</p>
+  </div>
+
   <!-- Marco de viñeta y sello que invita a girar la torre -->
   <div class="frame" aria-hidden="true"></div>
   <div class="spin-badge" id="spinBadge" aria-hidden="true">
@@ -172,10 +200,9 @@
   </div>
   <div class="minimap" id="minimap" aria-hidden="true"></div>
   <div class="floor-tip" id="floorTip" aria-hidden="true"></div>
-  <div class="burst" id="burst" aria-hidden="true"></div>
 
   <div class="toast" id="toast" role="status"></div>
-  <div class="cursor" id="cursor" aria-hidden="true" hidden><span></span></div>
+  <p class="nogl-msg">Tu navegador no pudo iniciar la vista 3D. Actualízalo o abre esta página en Chrome, Safari o Firefox recientes.</p>
 
   <script type="module" src="/src/main.js"></script>
 </body>
