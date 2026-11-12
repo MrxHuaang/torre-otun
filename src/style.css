@@ -391,7 +391,8 @@ input[type='range']::-moz-range-thumb { width: 13px; height: 13px; background: v
   .counts b { font-size: 32px; }
   .gate-title h2 { font-size: clamp(56px, 21vw, 120px); }
 
-  .tour-exit, .explore .back, .tour-mode { top: 68px; }
+  .tour-exit, .explore .back { top: 68px; }
+  .tour-mode { top: 116px; left: 16px; right: auto; }   /* en su propia fila: no cabe junto a 'Volver' */
   .tour-mode button { min-height: 40px; padding: 0 12px; font-size: 9.5px; letter-spacing: 0.16em; }
   .tour-bar { bottom: calc(16px + env(safe-area-inset-bottom)); height: 58px; }
   .tour-play { width: 54px; }

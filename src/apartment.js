@@ -26,7 +26,7 @@ const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfb
 const GLASS = ['vidrio', 'esmerilado'];
 // Versión del arte del apartamento. Se sube con cada exportación de Blender: como los archivos conservan
 // el nombre, sin esto el navegador seguiría mostrando el modelo y las texturas anteriores desde su caché.
-const ART = '?v=9';
+const ART = '?v=11';
 
 const DETAIL_GLSL = /* glsl */ `
   varying vec3 vWp;
@@ -117,14 +117,15 @@ export function createApartment() {
   // Cordillera al fondo: siluetas de papel que la tinta contornea
   {
     const mat = new THREE.MeshBasicMaterial({ color: 0xf6f5f1, side: THREE.DoubleSide });
-    for (const [x, base, amp, seed] of [[900, 60, 300, 4], [680, 10, 190, 2.4], [480, -30, 110, 1]]) scene.add(ridgeMesh(x, base, amp, seed, mat));
+    for (const [x, base, amp, seed] of [[900, 50, 150, 4], [680, 10, 100, 2.4], [480, -30, 60, 1]]) scene.add(ridgeMesh(x, base, amp, seed, mat));
   }
   function ridgeMesh(x, base, amp, seed, mat) {
     {
-      const N = 160, pos = [], idx = [];
+      const N = 420, pos = [], idx = [];
       for (let i = 0; i <= N; i++) {
         const z = -1000 + (i / N) * 2000;
-        const h = base + amp * (0.5 + 0.5 * Math.sin(z * 0.0052 + seed)) * (0.62 + 0.38 * Math.sin(z * 0.017 + seed * 3)) + amp * 0.1 * Math.sin(z * 0.06 + seed);
+        const h = base + amp * (0.5 + 0.5 * Math.sin(z * 0.0052 + seed)) * (0.62 + 0.38 * Math.sin(z * 0.017 + seed * 3))
+          + amp * (0.08 * Math.sin(z * 0.06 + seed) + 0.03 * Math.sin(z * 0.19 + seed * 5));
         pos.push(x, h, z, x, -260, z);
         if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
       }
@@ -174,6 +175,36 @@ export function createApartment() {
     floorY = 8 + fi * 3.2;
     for (const [o, extra] of grounded) o.position.y = -floorY - extra;
   };
+  // Fachada de los edificios del barrio (versión realista): filas de ventanas por piso y un tono propio por edificio.
+  // Todo por sombreador, en coordenadas del propio barrio, así no cambia al subir o bajar de piso.
+  const facade = (color) => {
+    const m = new THREE.MeshLambertMaterial({ color });
+    m.customProgramCacheKey = () => 'fachada';
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vLp;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLp = position;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vLp;
+          float fhash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          {
+            vec3 n = abs(normalize(cross(dFdx(vLp), dFdy(vLp))));
+            diffuseColor.rgb *= 0.9 + 0.2 * fhash(floor(vLp.xz / 16.0));          // cada edificio, su tono
+            if (n.y < 0.5) {                                                       // solo en muros, no en cubiertas
+              float along = n.x > n.z ? vLp.z : vLp.x;
+              vec2 cell = vec2(along / 2.4, vLp.y / 3.1), f = fract(cell), w = fwidth(cell) * 1.2;
+              float win = smoothstep(0.18 - w.x, 0.18 + w.x, f.x) * smoothstep(0.82 + w.x, 0.82 - w.x, f.x)
+                        * smoothstep(0.3 - w.y, 0.3 + w.y, f.y) * smoothstep(0.78 + w.y, 0.78 - w.y, f.y);
+              win *= 1.0 - smoothstep(0.25, 0.6, max(w.x, w.y));                    // de lejos se funden: sin parpadeo
+              vec3 glass = mix(vec3(0.13, 0.19, 0.25), vec3(0.42, 0.52, 0.6), fhash(floor(cell) + 3.0));
+              diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * 0.9);
+            }
+          }`);
+    };
+    return m;
+  };
   const placeCity = (target) => {
     const c = city.clone();
     c.position.set(-5, -floorY - 0.2, 6);
@@ -185,7 +216,7 @@ export function createApartment() {
       c.traverse((o) => {
         if (!o.isMesh) return;
         const key = o.material.userData.key || 'conc';
-        o.material = made[key] || (made[key] = new THREE.MeshLambertMaterial({ color: tint[key] || tint.conc, side: o.material.side }));
+        o.material = made[key] || (made[key] = key === 'conc' ? facade(tint.conc) : new THREE.MeshLambertMaterial({ color: tint[key] || tint.conc, side: o.material.side }));
       });
     }
     target.add(c);
@@ -226,12 +257,21 @@ export function createApartment() {
       vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
       fragmentShader: `
         uniform vec3 uSun; varying vec3 vDir;
+        float ch(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float cn(vec2 p) {
+          vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(ch(i), ch(i + vec2(1, 0)), f.x), mix(ch(i + vec2(0, 1)), ch(i + vec2(1, 1)), f.x), f.y);
+        }
         void main() {
           vec3 d = normalize(vDir);
           float h = clamp(d.y, 0.0, 1.0);
           vec3 c = mix(vec3(0.875, 0.906, 0.925), vec3(0.47, 0.66, 0.86), pow(h, 0.55));
           float s = max(dot(d, uSun), 0.0);
           c += vec3(1.0, 0.86, 0.66) * (pow(s, 6.0) * 0.28 + pow(s, 90.0) * 0.6);
+          // nubes altas y ralas: ruido sobre el plano del cielo, se desvanecen hacia el horizonte
+          vec2 q = d.xz / max(d.y, 0.04) * 0.55;
+          float cl = cn(q) * 0.5 + cn(q * 2.1 + 7.0) * 0.3 + cn(q * 4.3 + 19.0) * 0.2;
+          c = mix(c, vec3(1.0, 0.985, 0.96), smoothstep(0.52, 0.78, cl) * smoothstep(0.03, 0.22, d.y) * 0.85);
           gl_FragColor = vec4(c, 1.0);
           #include <colorspace_fragment>
         }`,
@@ -367,10 +407,23 @@ export function createApartment() {
       else o.material = lamp(GLOW[name] || 0xfff1d6);
     });
     rs.add(gltf.scene);
-    // Cordillera en tres planos: cada uno más azul y más claro con la distancia
-    for (const [x, base, amp, seed, color] of [[900, 60, 300, 4, 0xbccbd9], [680, 10, 190, 2.4, 0x9fb4c2], [480, -30, 110, 1, 0x7f9a93]]) {
-      rs.add(ridgeMesh(x, base, amp, seed, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: false })));
-    }
+    // Cordillera en cinco planos. Cada uno lleva su degradado (más oscuro en la base, más claro en la cresta)
+    // y los lejanos se van al azul pálido de la bruma: profundidad sin texturas.
+    const range = (top, bottom, y0, y1) => new THREE.ShaderMaterial({
+      side: THREE.DoubleSide, fog: false,
+      uniforms: { uTop: { value: new THREE.Color(top) }, uBot: { value: new THREE.Color(bottom) }, uY: { value: new THREE.Vector2(y0, y1) } },
+      vertexShader: 'varying float vY; void main() { vY = position.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform vec3 uTop, uBot; uniform vec2 uY; varying float vY;
+        void main() {
+          gl_FragColor = vec4(mix(uBot, uTop, smoothstep(uY.x, uY.y, vY)), 1.0);
+          #include <colorspace_fragment>
+        }`,
+    });
+    for (const [x, base, amp, seed, top, bottom] of [
+      [1050, 70, 170, 4.0, 0xc9d6e2, 0xd9e2ea], [860, 40, 130, 2.4, 0xafc1cf, 0xc6d3dc], [680, 5, 100, 1.0, 0x8fa9b3, 0xb1c2c8],
+      [520, -30, 70, 5.2, 0x6f8f84, 0x97aeaa], [380, -45, 45, 3.3, 0x55785f, 0x86a08d],
+    ]) rs.add(ridgeMesh(x, base, amp, seed, range(top, bottom, base - 40, base + amp)));
     // Espejos de verdad: reflejan la escena (baño y alcoba principal). Solo se calculan estando cerca.
     const res = light ? 512 : 1024;
     const mirror = (geo, x, y, z, turn) => {

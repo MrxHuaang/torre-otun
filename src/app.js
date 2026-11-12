@@ -79,7 +79,7 @@ renderer.setClearColor(BG);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;   // la tinta cuantiza el tono: no hace falta sombra más cara
 renderer.shadowMap.autoUpdate = false;
-const ink = createInk(renderer, { paper: BG, ink: INK, ochre: 0x9c8b5e, msaa: !MOBILE });
+const ink = createInk(renderer, { paper: BG, ink: INK, ochre: 0x9c8b5e, msaa: !MOBILE, fine: !MOBILE });
 // Estilo tinta por defecto. Agrega ?limpio a la URL para ver la maqueta sin el pase de tinta.
 const INKMODE = !new URLSearchParams(location.search).has('limpio');
 const apt = createApartment();

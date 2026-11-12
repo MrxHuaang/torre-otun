@@ -809,7 +809,6 @@ for dy in (-0.055, 0.055):
 cyl(0.008, 0.008, 0.14, (2.33, TY - 0.42, 0.72), M['brass'], RY, 12)                # portarrollos
 cyl(0.055, 0.055, 0.11, (2.3, TY - 0.42, 0.72), M['paper'], RX, 32)
 box((0.55, 0.85, 0.012), (0.85, 9.3, 0.018), M['towel'], 0.006)                     # tapete frente al tocador
-cyl(0.012, 0.012, 0.05, (0.9, 8.42, 1.7), M['brass'], RX, 12)                       # percha tras la puerta
 # Toallero
 cyl(0.008, 0.008, 0.6, (2.36, 8.85, 1.25), M['brass'], RX, 12)
 soft((0.05, 0.42, 0.6), (2.34, 8.85, 0.97), M['towel'])

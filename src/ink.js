@@ -1,7 +1,7 @@
 // Pase de tinta: convierte cualquier escena 3D en una lámina a pluma, en tiempo real.
 //  1) color de la escena              → tono (decide aguada y trama) y color plano
 //  2) normales + textura de profundidad → contornos
-//  3) cuadro final: papel, aguada, trama y contornos suavizados, pegados a la geometría
+//  3) cuadro final: papel, aguada, trama y contornos; trama y contornos van pegados a las superficies
 //  4) las líneas vectoriales (capa 1) se dibujan encima, respetando profundidad
 //
 // Solo usa texturas de 8 bits y una textura de profundidad estándar, así corre igual en
@@ -33,6 +33,7 @@ const inkMaterial = new THREE.ShaderMaterial({
     uNear: { value: 0.5 }, uFar: { value: 1000 }, uP22: { value: 0 }, uP32: { value: 0 },
     uFadeA: { value: 200 }, uFadeB: { value: 500 }, uExposure: { value: 1 },
     uPaper: { value: new THREE.Color() }, uInk: { value: new THREE.Color() }, uOchre: { value: new THREE.Color() },
+    uInvViewProj: { value: new THREE.Matrix4() }, uCamRot: { value: new THREE.Matrix3() }, uPix: { value: 0.001 },
   },
   vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
   fragmentShader: /* glsl */ `
@@ -40,6 +41,9 @@ const inkMaterial = new THREE.ShaderMaterial({
     uniform vec2 uRes;
     uniform float uDpr, uNear, uFar, uP22, uP32, uFadeA, uFadeB, uExposure;
     uniform vec3 uPaper, uInk, uOchre;
+    uniform mat4 uInvViewProj;
+    uniform mat3 uCamRot;
+    uniform float uPix;
     varying vec2 vUv;
 
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -47,11 +51,22 @@ const inkMaterial = new THREE.ShaderMaterial({
       vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
       return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
     }
-    // Trazos paralelos: 0 = tinta, 1 = papel. w = medio grosor (0..0.5).
-    float hatch(vec2 p, float ang, float sp, float w) {
-      float c = dot(p, vec2(cos(ang), sin(ang))) / sp;
+    // Trazos paralelos: 0 = tinta, 1 = papel. c = coordenada medida en trazos; w = medio grosor (0..0.5).
+    float strokes(float c, float w) {
       float f = abs(fract(c) - 0.5), aa = fwidth(c);
-      return smoothstep(w - aa, w + aa, f);
+      return mix(1.0, smoothstep(w - aa, w + aa, f), 1.0 - smoothstep(0.35, 0.7, aa));   // si no caben, se funden en vez de vibrar
+    }
+    // Trama anclada a las superficies, no a la pantalla: al mover la vista los trazos se quedan sobre el objeto.
+    // El paso entre trazos se ajusta a la distancia en saltos de doble o mitad, fundiendo un nivel con el siguiente,
+    // para que en pantalla siempre midan parecido.
+    float hatchWorld(vec2 uv, float d, float w) {
+      vec4 wp = uInvViewProj * vec4(uv * 2.0 - 1.0, texture2D(tDepth, uv).x * 2.0 - 1.0, 1.0);
+      vec3 p = wp.xyz / wp.w;
+      vec3 n = normalize(uCamRot * (texture2D(tNormal, uv).rgb * 2.0 - 1.0));
+      float c = dot(p - n * dot(p, n), vec3(0.545, 0.709, 0.447));       // sobre el plano de la cara, en diagonal
+      float level = log2(max(d * uPix * 8.0, 1e-4));                     // 8 px entre trazos
+      float l0 = floor(level), f = level - l0;
+      return mix(strokes(c / exp2(l0), w), strokes(c / exp2(l0 + 1.0), w), f);
     }
     // Distancia a la cámara a partir de la profundidad guardada (proyección en perspectiva).
     float dist(vec2 uv) {
@@ -74,9 +89,14 @@ const inkMaterial = new THREE.ShaderMaterial({
     void main() {
       vec2 px = gl_FragCoord.xy / uDpr;
       // El contorno va pegado a la geometría, sin temblor de pantalla: así no "nada" cuando la escena se mueve.
-      // Se calcula en dos puntos dentro del píxel y se promedia: el borde queda suavizado y no parpadea.
-      vec2 sub = 0.5 / uRes;
-      float edge = (edgeAt(vUv + sub * vec2(1.0, 0.45)) + edgeAt(vUv - sub * vec2(1.0, 0.45))) * 0.5;
+      // Se calcula en varios puntos dentro del píxel y se promedia: el borde queda suavizado y no parpadea.
+      vec2 sub = 1.0 / uRes;
+      #ifdef FINE_EDGES
+        float edge = (edgeAt(vUv + sub * vec2(0.375, 0.125)) + edgeAt(vUv + sub * vec2(-0.125, 0.375))
+                    + edgeAt(vUv + sub * vec2(-0.375, -0.125)) + edgeAt(vUv + sub * vec2(0.125, -0.375))) * 0.25;
+      #else
+        float edge = (edgeAt(vUv + sub * vec2(0.5, 0.22)) + edgeAt(vUv - sub * vec2(0.5, 0.22))) * 0.5;
+      #endif
 
       // --- Tono y color plano
       vec3 c = pow(clamp(texture2D(tColor, vUv).rgb * uExposure, 0.0, 1.0), vec3(1.0 / 2.2));
@@ -90,7 +110,7 @@ const inkMaterial = new THREE.ShaderMaterial({
 
       // Sombra en tres escalones limpios: aguada gris, trama ancha solo en lo oscuro, negro
       float wash = smoothstep(0.62, 0.54, th), hat = smoothstep(0.36, 0.22, th);
-      float ink = mix(1.0, hatch(px, 0.7, 8.0, 0.05 + 0.15 * hat), step(0.001, hat));
+      float ink = hat > 0.001 ? hatchWorld(vUv, dist(vUv), 0.05 + 0.15 * hat) : 1.0;
       ink *= smoothstep(0.05, 0.11, th);
       ink *= 1.0 - edge;
       base *= 1.0 - 0.13 * wash;
@@ -104,7 +124,9 @@ const inkMaterial = new THREE.ShaderMaterial({
     }`,
 });
 
-export function createInk(renderer, { paper, ink, ochre, msaa = true }) {
+// msaa: multimuestreo del pase de color. fine: contorno con cuatro muestras por píxel (equipos de escritorio).
+export function createInk(renderer, { paper, ink, ochre, msaa = true, fine = true }) {
+  if (fine) inkMaterial.defines = { FINE_EDGES: '' };
   const rtColor = new THREE.WebGLRenderTarget(1, 1, { samples: msaa ? 4 : 0 });
   const rtAux = new THREE.WebGLRenderTarget(1, 1, { depthTexture: new THREE.DepthTexture(1, 1) });
   rtAux.depthTexture.minFilter = rtAux.depthTexture.magFilter = THREE.NearestFilter;
@@ -150,6 +172,9 @@ export function createInk(renderer, { paper, ink, ochre, msaa = true }) {
       u.uP22.value = camera.projectionMatrix.elements[10];
       u.uP32.value = camera.projectionMatrix.elements[14];
       u.uFadeA.value = fadeA; u.uFadeB.value = fadeB; u.uExposure.value = exposure;
+      u.uInvViewProj.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+      u.uCamRot.value.setFromMatrix4(camera.matrixWorld);
+      u.uPix.value = 2 / (camera.projectionMatrix.elements[5] * (u.uRes.value.y / u.uDpr.value));   // tamaño de un píxel a 1 m
       renderer.setRenderTarget(null);
       quad.render(renderer);
       // 4) trazos vectoriales
