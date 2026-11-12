@@ -22,6 +22,11 @@ export const LAYOUT = [
   { tipo: 'D', x: -6.05, z: -4.05, n: '04' },
 ];
 
+// WhatsApp del asesor, en formato internacional y solo dígitos (ej. 573001234567).
+// Vacío: el enlace abre WhatsApp y el visitante elige a quién escribir.
+export const WHATSAPP = '';
+export const waLink = (text) => `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(text)}`;
+
 const PRECIO_M2 = 6_400_000;
 export const SEPARACION = 5_000_000;
 

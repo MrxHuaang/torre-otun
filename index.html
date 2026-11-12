@@ -158,7 +158,7 @@
         </h2>
         <p class="lead rv" style="--d:.25s">Sala de ventas en la Av. Circunvalar. Agenda y recórrela con un asesor.</p>
         <div class="row rv" style="--d:.35s">
-          <button class="btn" data-toast="Demo: aquí se agenda la visita con un asesor.">Agendar visita</button>
+          <a class="btn" id="visitWa" target="_blank" rel="noopener">Agendar por WhatsApp</a>
           <button class="btn ghost js-explore">Ver disponibilidad</button>
         </div>
         <p class="fine rv" style="--d:.45s">Proyecto ficticio. Cifras, tiempos y precios ilustrativos.</p>
@@ -187,12 +187,13 @@
       <p class="eyebrow">Fin del recorrido</p>
       <h2 class="display mid" id="tourEndTitle">Así se vive en el piso 14.</h2>
       <svg class="tour-end-rule" viewBox="0 0 320 12" aria-hidden="true"><path pathLength="1" d="M2 6C40 3 82 9 120 6S200 4 242 7S300 5 318 6" /></svg>
+      <a class="btn tour-wa" id="tourWa" target="_blank" rel="noopener">Preguntar por WhatsApp</a>
       <span class="tour-end-slot" id="tourEndSlot"></span>
       <button class="tour-again" id="tourAgain">Ver de nuevo</button>
     </div>
     <button class="btn small ghost tour-exit" id="tourExit">← Volver a la torre</button>
     <div class="tour-plate">
-      <p class="eyebrow">Tipo A · Piso 14</p>
+      <p class="eyebrow"><span id="tourUnit">Tipo A · Piso 14</span><em id="tourArea"></em></p>
       <h2 class="display mid" id="tourTitle" aria-live="polite">Sala comedor</h2>
       <p class="copy" id="tourText"></p>
     </div>
@@ -209,6 +210,7 @@
     <div class="tour-mode" role="group" aria-label="Estilo del recorrido">
       <button data-style="real" class="on" aria-pressed="true">Realista</button>
       <button data-style="ink" aria-pressed="false">Tinta</button>
+      <button class="share" id="tourShare" aria-label="Compartir este recorrido">Compartir</button>
     </div>
     <p class="tour-hint">Arrastra para mirar · toca para pausar</p>
   </div>

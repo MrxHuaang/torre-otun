@@ -167,9 +167,17 @@ export function createApartment() {
 
   // El barrio de la torre, visto desde el piso 14
   let city = null;
+  // Altura del piso que se recorre: el barrio (y su suelo) bajan o suben para que la vista sea la de ese piso.
+  let floorY = 43.2;
+  const grounded = [];
+  api.setFloor = (fi) => {
+    floorY = 8 + fi * 3.2;
+    for (const [o, extra] of grounded) o.position.y = -floorY - extra;
+  };
   const placeCity = (target) => {
     const c = city.clone();
-    c.position.set(-5, -43.4, 6);
+    c.position.set(-5, -floorY - 0.2, 6);
+    grounded.push([c, 0.2]);
     if (target !== scene) {
       // En la versión realista el barrio lleva colores de ciudad, no de lámina
       const tint = { conc: 0xe7e1d6, glass: 0x6f8798, frame: 0x3a3a3a, wood: 0x9a7650, green: 0x56794a, rail: 0xcfd6da, roof: 0xa8563a, road: 0x8d8f8e };
@@ -231,7 +239,8 @@ export function createApartment() {
     // Suelo de la ciudad bajo el barrio, para que no flote sobre el vacío
     const ground = new THREE.Mesh(new THREE.CircleGeometry(1000, 48), new THREE.MeshLambertMaterial({ color: 0x9aa58f }));
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -43.6;
+    ground.position.y = -floorY - 0.4;
+    grounded.push([ground, 0.4]);
     rs.add(ground);
     // La textura horneada trae la luz; de cerca se le suma un grano fino propio de cada superficie
     // (revoque, veta, tejido), calculado por sombreador: la pared no se ve lavada al acercarse.

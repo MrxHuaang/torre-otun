@@ -6,10 +6,10 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { createApartment } from './apartment.js';
-import { createMinimap } from './extras.js';
+import { createMinimap, AREAS } from './extras.js';
 import { createIntro } from './intro.js';
 import { createInk } from './ink.js';
-import { FLOORS, SEPARACION, buildUnits, cop, planSVG } from './data.js';
+import { FLOORS, SEPARACION, buildUnits, cop, planSVG, waLink } from './data.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -393,7 +393,7 @@ const state = {
   shift: 0.2,   // la torre se corre a un lado para no quedar debajo del texto
 };
 const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null, floor: null };
-const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
+const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, unit: null, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
 const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const view = { w: 1, h: 1 };
 
@@ -730,6 +730,7 @@ $$('[data-scroll]').forEach((a) =>
       });
       // El apartamento se pide ya dentro, y su versión realista un poco después: al abrir el recorrido están listos.
       gsap.delayedCall(1.5, apt.start);
+      if (deep) gsap.delayedCall(1.7, openDeepLink);
       gsap.delayedCall(3.5, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
     },
   });
@@ -739,11 +740,27 @@ $$('[data-scroll]').forEach((a) =>
 /* Recorrido interior: el apartamento en 3D, caminado en vivo          */
 /* ------------------------------------------------------------------ */
 
+/* Enlaces: cada apartamento y cada espacio del recorrido tienen dirección propia, para mandarla por chat. */
+const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const deep = location.hash.match(/^#\/(apto|recorrido)\/([^/]+)(?:\/(.+))?/);   // con qué enlace llegó el visitante
+const setHash = (h) => history.replaceState(null, '', h ? `#/${h}` : location.pathname + location.search);
+const here = () => location.href;
+async function share(title) {
+  try {
+    if (navigator.share && MOBILE) await navigator.share({ title, url: here() });
+    else { await navigator.clipboard.writeText(here()); notify('Enlace copiado. Pégalo donde quieras compartirlo.'); }
+  } catch { /* el visitante cerró el diálogo de compartir */ }
+}
+const askFor = (u) => waLink(`Hola, me interesa el apartamento ${u.codigo} de Torre Otún (${u.nombre}, ${u.area} m², piso ${u.piso}, ${cop(u.precio)}). ${location.origin}${location.pathname}#/apto/${u.codigo}`);
+$('#visitWa').href = waLink(`Hola, quiero agendar una visita a la sala de ventas de Torre Otún. ${location.origin}${location.pathname}`);
+
 const tourEl = $('#tour');
 const hud = {
   title: $('#tourTitle'), text: $('#tourText'), play: $('#tourPlay'), pulse: $('#tourPulse'),
   fill: $('#tourFill'), me: $('#tourMe'), route: $('#tourRoute'), stops: $('#tourStops'),
+  unit: $('#tourUnit'), area: $('#tourArea'), wa: $('#tourWa'),
 };
+const MODEL_UNIT = UNITS.find((u) => u.codigo === '1401');   // el apartamento que se recorre si no se eligió otro
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
@@ -828,13 +845,13 @@ function setEnded(on) {
     .fromTo('.tour-end .eyebrow', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.7 * d }, 0.45 * d)
     .fromTo('.tour-end .ch', { yPercent: 115 }, { yPercent: 0, duration: 1.1 * d, stagger: 0.022 * d }, 0.5 * d)
     .fromTo('.tour-end-rule path', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.2 * d, ease: 'power2.inOut' }, 0.8 * d)
-    .fromTo('#tourAgain', { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6 * d }, 1.45 * d);
+    .fromTo(['#tourWa', '#tourAgain'], { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6 * d, stagger: 0.12 * d }, 1.3 * d);
 }
 function resetEnded() {
   walk.ended = false;
   endEl.setAttribute('aria-hidden', 'true');
   if (endTl) { endTl.progress(0).kill(); endTl = null; }
-  gsap.set(['.tour-plate', '.tour-bar', '.tour-mode', '#minimap', exitBtn, '#tourWash', endEl, '#tourAgain', '.tour-end .eyebrow'], { clearProps: 'all' });
+  gsap.set(['.tour-plate', '.tour-bar', '.tour-mode', '#minimap', exitBtn, '#tourWash', endEl, '#tourAgain', '#tourWa', '.tour-end .eyebrow'], { clearProps: 'all' });
 }
 $('#tourAgain').addEventListener('click', () => { seekTour(0); gsap.delayedCall(0.9, () => walk.on && setPlaying(true)); });
 
@@ -865,11 +882,13 @@ function renderWalk(dt) {
     walk.key = k;
     hud.title.textContent = apt.marks[k].title;
     hud.text.textContent = apt.marks[k].text;
+    hud.area.textContent = AREAS[apt.marks[k].title] || '';
   }
   const sk = stopAt(walk.t);
   if (sk !== stopKey) {
     stopKey = sk;
     [...hud.stops.children].forEach((b, i) => { b.classList.toggle('on', i === sk); b.classList.toggle('past', i < sk); });
+    setHash(`recorrido/${walk.unit.codigo}/${slug(stops[sk].name)}`);
   }
   const x = lineAt(walk.t);
   hud.fill.style.transform = `scaleX(${x})`;
@@ -877,9 +896,14 @@ function renderWalk(dt) {
   minimap.update(walk.t);
 }
 
-async function startTour() {
+// unit: el apartamento desde cuya ficha se abre el recorrido (si no, el modelo del piso 14).
+async function startTour(unit) {
   if (walk.on || walk.busy || document.body.classList.contains('locked')) return;
   walk.busy = true;
+  const u = walk.unit = unit && unit.codigo ? unit : MODEL_UNIT;
+  apt.setFloor(u.fi);                                    // la vista por las ventanas es la de su piso
+  hud.unit.textContent = u.tipo === 'A' ? `Tipo A · Piso ${u.piso} · ${u.codigo}` : `Apartamento modelo tipo A · Piso ${u.piso}`;
+  hud.wa.href = askFor(u.tipo === 'A' ? u : MODEL_UNIT);
   apt.start();
   if (ex.on) await new Promise((res) => exitExplore(res));
   lenis.stop();
@@ -915,6 +939,7 @@ async function endTour() {
   setPlaying(false);
   await gsap.to(walk, { veil: 1, duration: 0.4, ease: 'power2.in' });
   walk.on = false;
+  setHash(ex.selected ? `apto/${ex.selected.codigo}` : '');
   resetEnded();
   document.body.classList.remove('inside');
   tourEl.setAttribute('aria-hidden', 'true');
@@ -924,7 +949,7 @@ async function endTour() {
 }
 
 // Tinta o realista: mismo recorrido, dos formas de verlo. La realista se descarga la primera vez que se pide.
-const modeBtns = $$('.tour-mode button');
+const modeBtns = $$('.tour-mode [data-style]');
 function markStyle(real) {
   walk.real = real;
   document.body.classList.toggle('real', real);
@@ -955,7 +980,13 @@ async function setStyle(real) {
 }
 modeBtns.forEach((b) => b.addEventListener('click', () => setStyle(b.dataset.style === 'real')));
 
-$$('.js-tour').forEach((b) => b.addEventListener('click', startTour));
+$$('.js-tour').forEach((b) => b.addEventListener('click', () => startTour()));
+$('#tourShare').addEventListener('click', () => share('Recorrido por un apartamento de Torre Otún'));
+// Tocar un espacio en el plano lleva a ese espacio
+minimap.onPick((title) => {
+  const m = walk.on && apt.marks.find((mk) => mk.title === title);
+  if (m) seekTour(m.t + 0.002);
+});
 $('#tourExit').addEventListener('click', endTour);
 hud.play.addEventListener('click', () => togglePlay(false));
 {
@@ -1040,6 +1071,7 @@ function setFloor(fi) {
 function selectUnit(u) {
   ex.selected = u;
   exploreEl.classList.toggle('has-unit', !!u);
+  if (!walk.on) setHash(u ? `apto/${u.codigo}` : '');
   if (!u) return;
   if (ex.floor !== u.fi) setFloor(u.fi);
   const disponible = u.status === 'disponible';
@@ -1055,6 +1087,7 @@ function selectUnit(u) {
     </div>
     ${planSVG(u.tipo)}
     <p class="vista">Vista: ${u.vista}</p>
+    <button class="link" id="shareUnit">Copiar enlace de este apartamento</button>
     <div class="price"><span>Precio</span><b>${cop(u.precio)}</b></div>
     ${disponible ? `
     <div class="quote">
@@ -1067,10 +1100,12 @@ function selectUnit(u) {
       </dl>
     </div>
     <button class="btn" data-toast="Demo: aquí se paga la separación en línea.">Separar esta residencia</button>
-    <button class="btn ghost" id="toInterior">Recorrer por dentro</button>`
+    <a class="btn ghost" href="${askFor(u)}" target="_blank" rel="noopener">Preguntar por WhatsApp</a>
+    <button class="btn ghost" id="toInterior">${u.tipo === 'A' ? 'Recorrer por dentro' : 'Recorrer apartamento modelo'}</button>`
     : `<p class="sold">Esta residencia ya no está disponible. Mira las marcadas en ocre.</p>`}`;
   panel.scrollTop = 0;
   $('.x', panel).addEventListener('click', () => selectUnit(null));
+  $('#shareUnit').addEventListener('click', () => share(`Apartamento ${u.codigo} de Torre Otún`));
   if (disponible) {
     const ci = $('#qCi'), m = $('#qM');
     const calc = () => {
@@ -1082,7 +1117,7 @@ function selectUnit(u) {
     };
     ci.addEventListener('input', calc); m.addEventListener('input', calc);
     calc();
-    $('#toInterior').addEventListener('click', startTour);
+    $('#toInterior').addEventListener('click', () => startTour(u));
   }
 }
 
@@ -1115,6 +1150,20 @@ function exitExplore(after) {
     x: state.px, y: state.py, z: state.pz, duration: 1.1, ease: 'power3.inOut',
     onComplete: () => { ex.on = false; ex.exiting = false; lenis.start(); typeof after === 'function' && after(); },
   });
+}
+
+// Llegó con un enlace a un apartamento o a un espacio del recorrido: se le lleva ahí apenas entra.
+function openDeepLink() {
+  const [, kind, code, place] = deep;
+  const unit = UNITS.find((u) => u.codigo === code);
+  if (kind === 'recorrido') {
+    startTour(unit).then(() => {
+      const stop = place && stops.find((st) => slug(st.name) === place);
+      if (stop) seekTour(stop.t + 0.002);
+    });
+  } else if (unit) {
+    lenis.scrollTo('#residencias', { offset: window.innerHeight * 2, duration: 1.4, onComplete: () => { enterExplore(); gsap.delayedCall(1.5, () => selectUnit(unit)); } });
+  }
 }
 
 $('#exploreBtn').addEventListener('click', enterExplore);
