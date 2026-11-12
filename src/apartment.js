@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 
 // Color de cada material (mismos nombres que en Blender) y qué trazo lleva.
 const MATS = {
@@ -183,7 +184,7 @@ export function createApartment() {
   // Versión realista: mismo apartamento con muebles detallados y la luz horneada en Blender
   // (sol, cielo, rebotes y lámparas ya vienen pintados en tres texturas). No hay luces que calcular,
   // así que es incluso más liviana de dibujar que la tinta. Se descarga solo cuando se pide.
-  api.real = { ready: false, scene: null, pending: null };
+  api.real = { ready: false, scene: null, pending: null, mirrors: [] };
   api.loadReal = (renderer, light) => api.real.pending || (api.real.pending = (async () => {
     // 4K solo en equipos con memoria de sobra; el resto usa 2K, que pesa la cuarta parte
     const size = light || renderer.capabilities.maxTextureSize < 8192 || (navigator.deviceMemory || 8) < 8 ? '2k' : '4k';
@@ -225,8 +226,34 @@ export function createApartment() {
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -43.6;
     rs.add(ground);
-    const flat = (map) => new THREE.MeshBasicMaterial({ map, fog: false });
-    const baked = { arq: flat(arq), tel: flat(tel), mob: flat(mob) };   // arquitectura, textiles, resto del mobiliario
+    // La textura horneada trae la luz; de cerca se le suma un grano fino propio de cada superficie
+    // (revoque, veta, tejido), calculado por sombreador: la pared no se ve lavada al acercarse.
+    const flat = (map, amp, scale) => {
+      const m = new THREE.MeshBasicMaterial({ map, fog: false });
+      m.customProgramCacheKey = () => `fino-${amp}-${scale}`;
+      m.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', `#include <common>
+            varying vec3 vWp;
+            float fh(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+            float fn(vec3 x) {
+              vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+              return mix(mix(mix(fh(i), fh(i + vec3(1, 0, 0)), f.x), mix(fh(i + vec3(0, 1, 0)), fh(i + vec3(1, 1, 0)), f.x), f.y),
+                         mix(mix(fh(i + vec3(0, 0, 1)), fh(i + vec3(1, 0, 1)), f.x), mix(fh(i + vec3(0, 1, 1)), fh(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+            }`)
+          .replace('#include <map_fragment>', `#include <map_fragment>
+            {
+              float near = 1.0 - smoothstep(1.5, 6.0, distance(vWp, cameraPosition));
+              float g = fn(vWp * ${scale.toFixed(1)}) * 0.6 + fn(vWp * ${(scale * 3.7).toFixed(1)}) * 0.4 - 0.5;
+              diffuseColor.rgb *= 1.0 + g * ${amp.toFixed(3)} * near;
+            }`);
+      };
+      return m;
+    };
+    const baked = { arq: flat(arq, 0.07, 90), tel: flat(tel, 0.12, 320), mob: flat(mob, 0.06, 140) };   // arquitectura, textiles, resto del mobiliario
     const glass = {
       vidrio: new THREE.MeshBasicMaterial({ color: 0xdfeaf0, transparent: true, opacity: 0.1, depthWrite: false, fog: false }),
       esmerilado: new THREE.MeshBasicMaterial({ color: 0xeef3f4, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
@@ -247,6 +274,17 @@ export function createApartment() {
     for (const [x, base, amp, seed, color] of [[900, 60, 300, 4, 0xbccbd9], [680, 10, 190, 2.4, 0x9fb4c2], [480, -30, 110, 1, 0x7f9a93]]) {
       rs.add(ridgeMesh(x, base, amp, seed, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: false })));
     }
+    // Espejos de verdad: reflejan la escena (baño y alcoba principal). Solo se calculan estando cerca.
+    const res = light ? 512 : 1024;
+    const mirror = (geo, x, y, z, turn) => {
+      const m = new Reflector(geo, { textureWidth: res, textureHeight: res, clipBias: 0.003, multisample: light ? 0 : 4 });
+      m.position.set(x, y, z);
+      m.rotation.y = turn;
+      rs.add(m);
+      api.real.mirrors.push(m);
+    };
+    mirror(new THREE.CircleGeometry(0.4, 56), 0.034, 1.62, -9.3, Math.PI / 2);          // redondo, sobre el lavamanos
+    mirror(new THREE.PlaneGeometry(0.82, 1.62), 6.5, 1.05, -8.454, Math.PI);            // de cuerpo entero
     api.real.scene = rs;
     if (city) placeCity(rs);
     await renderer.compileAsync?.(rs, camera);
@@ -267,6 +305,7 @@ export function createApartment() {
     d.addScaledVector(right, lookX * 0.32).addScaledVector(UP, -lookY * 0.18).normalize();
     camera.position.copy(a);
     camera.lookAt(b.copy(a).add(d));
+    for (const m of api.real.mirrors) m.visible = m.position.distanceTo(a) < 4.6;
   };
 
   api.resize = (w, h) => {

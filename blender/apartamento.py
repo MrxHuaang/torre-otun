@@ -453,6 +453,8 @@ def wall(axis, at, a0, a1, th=0.1, openings=(), mat=None, h=2.8):
 
 
 def casing(axis, at, o0, o1, th=0.14, top=2.1):
+    e = 0.004   # el marco entra 4 mm al vano: tapa el canto del muro en vez de compartir plano con él
+    o0, o1, top = o0 + e, o1 - e, top - e
     for sp in (o0 - 0.03, o1 + 0.03):
         if axis == 'x':
             box((th, 0.06, top + 0.03), (at, sp, (top + 0.03) / 2), M['ceil'], 0.003)
@@ -1333,17 +1335,48 @@ elif MODE == 'real':
         bpy.ops.uv.pack_islands(margin=0.0015)
         bpy.ops.object.mode_set(mode='OBJECT')
         print('UV', key, f'{time.time() - t0:.0f}s', flush=True)
-        img = bpy.data.images.new('lm_' + key, SIZE, SIZE, alpha=False, float_buffer=True)
+        # Dos horneados: la luz (con ruido de muestreo, que se limpia) y el color del material (nítido).
+        import numpy as np
+        nodes_img = []
         for slot in ob.material_slots:
             nt = slot.material.node_tree
             node = nt.nodes.new('ShaderNodeTexImage')
-            node.image = img
             for nd in nt.nodes:
                 nd.select = False
             node.select = True
             nt.nodes.active = node
+            nodes_img.append(node)
+
+        def bake_pass(name, passes, samples):
+            im_ = bpy.data.images.new(name, SIZE, SIZE, alpha=False, float_buffer=True)
+            for node in nodes_img:
+                node.image = im_
+            c.samples = samples
+            bpy.ops.object.bake(type='DIFFUSE', pass_filter=passes, margin=8, use_clear=True)
+            px = np.empty(SIZE * SIZE * 4, dtype=np.float32)
+            im_.pixels.foreach_get(px)
+            bpy.data.images.remove(im_)
+            return px.reshape(SIZE, SIZE, 4)[:, :, :3]
+
         t0 = time.time()
-        bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT', 'COLOR'}, margin=8, use_clear=True)
+        light = bake_pass('luz_' + key, {'DIRECT', 'INDIRECT'}, SAMPLES)
+        color = bake_pass('color_' + key, {'COLOR'}, 4)
+        # Limpieza de la luz: desenfoque corto que ignora los texeles sin luz (caras ocultas, fondo),
+        # así el grano desaparece sin que el negro de al lado manche los bordes.
+        mask = (light.sum(axis=2, keepdims=True) > 1e-5).astype(np.float32)
+        acc, wsum = light * mask, mask.copy()
+        kern = (1.0, 4.0, 6.0, 4.0, 1.0)
+        for _ in range(2):
+            for axis in (0, 1):
+                a2, w2 = np.zeros_like(acc), np.zeros_like(wsum)
+                for k, wk in zip(range(-2, 3), kern):
+                    a2 += wk * np.roll(acc, k, axis=axis)
+                    w2 += wk * np.roll(wsum, k, axis=axis)
+                acc, wsum = a2, w2
+            acc, wsum = acc / np.maximum(wsum, 1e-6) * mask, mask.copy()
+        out = np.concatenate([color * acc, np.ones((SIZE, SIZE, 1), np.float32)], axis=2)
+        img = bpy.data.images.new('lm_' + key, SIZE, SIZE, alpha=False, float_buffer=True)
+        img.pixels.foreach_set(out.reshape(-1))
         print('BAKE', key, f'{time.time() - t0:.0f}s', flush=True)
         img.save_render(os.path.join(OUT, f'apto-{key}-4k.webp'), scene=scene)
         img.scale(SIZE // 2, SIZE // 2)

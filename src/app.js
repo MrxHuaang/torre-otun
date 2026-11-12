@@ -1157,7 +1157,14 @@ canvas.addEventListener('pointerdown', (ev) => {
 canvas.addEventListener('pointermove', (ev) => {
   if (!playable()) { floorTip.classList.remove('on'); return; }
   if (grab) {
-    const dx = ev.clientX - grab.x;
+    const dx = ev.clientX - grab.x, dy = ev.clientY - grab.y;
+    if (grab.touch && !grab.moved) {
+      // Con el dedo, la torre solo gira si el gesto es claramente horizontal; si es vertical, es scroll y no se toca.
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { grab = null; canvas.classList.remove('grabbing'); return; }
+      if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      grab.x = ev.clientX; grab.moved = true; spun = true;
+      return;
+    }
     if (Math.abs(dx) > 6) { grab.moved = true; spun = true; }
     spin.target = grab.r + dx * 0.008;
     floorTip.classList.remove('on');
