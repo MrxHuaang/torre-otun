@@ -585,7 +585,7 @@ function render() {
     camera.setViewOffset(w, h, -viewShift * w, portrait && !free ? h * 0.2 : 0, w, h);
   }
 
-  clouds.rotation.y += dt * 0.006;
+  if (!MOBILE) clouds.rotation.y += dt * 0.006;
   for (const c of clouds.children) c.quaternion.copy(camera.quaternion);
 
   // Sol detrás de la torre respecto a la cámara
@@ -594,9 +594,9 @@ function render() {
   sun.rotation.y = a;
 
   const p = dust.geometry.attributes.position;
-  for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * 1.4; if (y > 110) y = 0; p.setY(i, y); }
+  if (!MOBILE) for (let i = 0; i < p.count; i++) { let y = p.getY(i) + dt * 1.4; if (y > 110) y = 0; p.setY(i, y); }
   p.needsUpdate = true;
-  dust.rotation.y += dt * 0.01;
+  if (!MOBILE) dust.rotation.y += dt * 0.01;
 
   const place = (el, v) => { el.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px)`; };
   for (const pl of PLACES) {
@@ -1233,6 +1233,7 @@ canvas.addEventListener('pointerup', (ev) => {
 });
 
 window.addEventListener('pointermove', (ev) => {
+  if (ev.pointerType !== 'mouse') return;                // el dedo no es un cursor: no mueve la cámara
   mouse.x = (ev.clientX / window.innerWidth) * 2 - 1;
   mouse.y = (ev.clientY / window.innerHeight) * 2 - 1;
 });

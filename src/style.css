@@ -31,6 +31,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #stage.grabbing { cursor: grabbing; }
 #stage.hot { cursor: pointer; }
 .inside #stage { touch-action: none; }
+/* Teléfono y tableta: la escena no recibe toques. El dedo solo hace scroll; la escena se vuelve interactiva
+   únicamente dentro del recorrido y de la exploración de apartamentos, donde hace falta. */
+@media (pointer: coarse) {
+  #stage { pointer-events: none; cursor: default; }
+  .inside #stage, .exploring #stage { pointer-events: auto; }
+}
 
 /* Cambio de escena: dos franjas de tinta que se cierran y abren */
 .veil { position: fixed; inset: 0; z-index: 25; pointer-events: none; --v: 0; }
