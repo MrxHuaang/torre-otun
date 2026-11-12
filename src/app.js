@@ -243,19 +243,21 @@ let schMode = true;
 
 // Estructura (solo visible en rayos X)
 const structMat = new THREE.LineBasicMaterial({ color: RED, transparent: true, opacity: 0 });
+const subMat = new THREE.LineBasicMaterial({ color: RED, transparent: true, opacity: 0, depthTest: false });
 // El esqueleto solo se dibuja por encima de este plano: aparece a medida que la torre se desarma.
 const structClip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 structMat.clippingPlanes = [structClip];
+subMat.clippingPlanes = [structClip];
 renderer.localClippingEnabled = true;
 {
-  const a = [];
+  const a = [], under = [];                                   // sobre el suelo / bajo el suelo
   const xs = [-12, -6, 0, 6, 12], zs = [-8, 0, 8];
   for (const x of xs) for (const z of zs) {
     pushBox(a, x, (TOP - 3) / 2, z, 0.7, TOP + 3, 0.7);      // columna
-    pushBox(a, x, -10.5, z, 1, 15, 1);                        // pilote
-    pushBox(a, x, -18.4, z, 2.2, 0.8, 2.2);                   // punta
+    pushBox(under, x, -10.5, z, 1, 15, 1);                    // pilote
+    pushBox(under, x, -18.4, z, 2.2, 0.8, 2.2);               // punta
   }
-  pushBox(a, 0, -2.25, 0, 27.5, 1.5, 19.5);                   // losa de cimentación
+  pushBox(under, 0, -2.25, 0, 27.5, 1.5, 19.5);               // losa de cimentación
   pushBox(a, 0, (TOP - 3) / 2, 0, 5, TOP + 3, 4);             // núcleo de muros
   for (let i = 0; i <= FLOORS; i++) {
     const y = BASE + i * FH;
@@ -269,14 +271,21 @@ renderer.localClippingEnabled = true;
     }
     for (const x of [12, -12]) { pushLine(a, [x, y0, -8], [x, y1, 0]); pushLine(a, [x, y1, 0], [x, y0, 8]); }
   }
-  for (const y of [-6, -12, -18.8]) {                         // estratos de suelo
-    for (let x = -60; x < 60; x += 6) { pushLine(a, [x, y, 22], [x + 3, y, 22]); pushLine(a, [x, y, -22], [x + 3, y, -22]); }
-    for (let z = -22; z < 22; z += 6) { pushLine(a, [-60, y, z], [-60, y, z + 3]); pushLine(a, [60, y, z], [60, y, z + 3]); }
+  for (const y of [-6, -12, -18.8]) {                         // estratos de suelo, alrededor de la cimentación
+    for (let x = -18; x < 18; x += 4) { pushLine(under, [x, y, 13], [x + 2, y, 13]); pushLine(under, [x, y, -13], [x + 2, y, -13]); }
+    for (let z = -13; z < 13; z += 4) { pushLine(under, [-18, y, z], [-18, y, z + 2]); pushLine(under, [18, y, z], [18, y, z + 2]); }
   }
+  pushBox(under, 0, -9.4, 0, 36, 18.8, 26);                   // caja de la excavación: da la lectura de profundidad
   const st = new THREE.LineSegments(
     new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(a, 3)), structMat);
   st.layers.set(1);
   tower.add(st);
+  // Lo enterrado se dibuja sin prueba de profundidad: se ve a través de la calle, como una radiografía del terreno.
+  const sub = new THREE.LineSegments(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(under, 3)), subMat);
+  sub.layers.set(1);
+  sub.renderOrder = 5;
+  tower.add(sub);
 }
 
 // Suelo: trazado radial
@@ -396,7 +405,6 @@ const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null,
 // Cuánto está abierta la torre hasta el esqueleto. Al explorar disponibilidad siempre va completa.
 const xr = () => (ex.on || ex.exiting ? 0 : state.xray);
 const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, unit: null, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
-const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const view = { w: 1, h: 1 };
 
 const controls = new OrbitControls(camera, canvas);
@@ -491,6 +499,7 @@ function refreshUnits() {
   }
   const fade = 1 - 0.95 * x;
   structMat.opacity = Math.min(1, x * 6);
+  subMat.opacity = THREE.MathUtils.smoothstep(x, 0.7, 1) * 0.85;   // lo enterrado aparece al final, cuando la torre ya está abierta
   mullionMat.opacity = (ex.on ? 0.08 : 0.22) * (1 - x);
   slabMat.opacity = fade; slabMat.depthWrite = fade > 0.5;
   podiumFace.material.opacity = fade; podiumFace.material.depthWrite = fade > 0.5;
@@ -518,8 +527,6 @@ function render() {
   // Con la portada encima no se ve la escena: se dibuja 1 de cada 30 cuadros, solo para dejar todo compilado.
   if (state.intro > 0.999 && ++gateFrames % 30) return;
   adapt(dt);
-  mouse.sx += (mouse.x - mouse.sx) * 0.05;
-  mouse.sy += (mouse.y - mouse.sy) * 0.05;
   veil.style.setProperty('--v', walk.veil);
 
   if (walk.on) return renderWalk(dt);
@@ -543,7 +550,6 @@ function render() {
   {
     const low = THREE.MathUtils.smoothstep(xr(), 0.7, 1);          // al final baja hasta los pilotes
     structClip.constant = -((BASE + Math.min(bt, FLOORS) * FH) * (1 - low) - 26 * low);
-    tower.position.y = low * 21;                         // el esqueleto sube: los pilotes salen sobre la calle
     const podio = detail.solids[0];
     if (podio) {
       const k = 1 - THREE.MathUtils.smoothstep(xr(), 0.68, 0.9);
@@ -565,7 +571,7 @@ function render() {
     controls.update();
   } else {
     const k = 1 + state.intro * 1.3;
-    camera.position.set(state.px * k + mouse.sx * 8, state.py * k + state.intro * 40 - mouse.sy * 5, state.pz * k);
+    camera.position.set(state.px * k, state.py * k + state.intro * 40, state.pz * k);   // sin vaivén con el cursor: el dibujo se queda quieto
     look.set(state.tx, state.ty, state.tz);
     camera.lookAt(look);
   }
@@ -647,12 +653,12 @@ tl
   .to(state, { labels: 1, duration: 0.4 }, 2.1)
   .to(state, { ...cam(-98, 112, 18, 0, 4, 0), duration: 0.8, ease: 'none' }, 2.5)
   .to(state, { labels: 0, duration: 0.3 }, 3.1)
-  // III — Estructura: la torre se abre y el esqueleto sube hasta mostrar los pilotes (3.5 a 6)
+  // III — Estructura: la torre se abre y, desde arriba, se ve la cimentación a través del suelo (3.5 a 6)
   .to(state, { shift: -0.2, duration: 1.0 }, 3.3)
   .to(state, { ...cam(46, 12, 54, 0, 24, 0), duration: 1.1 }, 3.3)
   .to(state, { xray: 1, duration: 1 }, 3.6)
   .to(state, { ...cam(40, 15, 58, 0, 22, 0), duration: 0.5, ease: 'none' }, 4.5)
-  .to(state, { ...cam(46, 17, 64, 0, 10, 0), duration: 0.8 }, 5.0)
+  .to(state, { ...cam(44, 34, 58, 0, -8, 0), duration: 0.8 }, 5.0)
   // IV — Apartamentos: los pisos se separan (6 a 8)
   .to(state, { shift: 0.2, duration: 0.9 }, 5.85)
   .to(state, { ...cam(12, 40, 100, 0, 32, 0), duration: 0.9 }, 5.85)
@@ -765,7 +771,6 @@ const hud = {
 };
 const MODEL_UNIT = UNITS.find((u) => u.codigo === '1401');   // el apartamento que se recorre si no se eligió otro
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 // Paradas de la línea: los espacios con nombre propio. Los pasillos son tránsito, no parada.
 // Van repartidas por igual en la línea aunque unas estén más cerca que otras en el camino.
@@ -866,8 +871,8 @@ function renderWalk(dt) {
   if (!walk.busy) setEnded(walk.t >= 1 ? true : walk.t < 0.995 ? false : walk.ended);
   // La mirada sigue al cursor (o al dedo, mientras arrastra) y vuelve sola al frente.
   if (!look2.active) { walk.dragX *= 0.94; walk.dragY *= 0.94; }
-  const lx = THREE.MathUtils.clamp((finePointer ? mouse.x * 0.55 : 0) + walk.dragX, -1.8, 1.8);
-  const ly = THREE.MathUtils.clamp((finePointer ? mouse.y * 0.5 : 0) + walk.dragY, -1.2, 1.2);
+  const lx = THREE.MathUtils.clamp(walk.dragX, -1.8, 1.8);   // la mirada solo gira al arrastrar, no al pasar el cursor
+  const ly = THREE.MathUtils.clamp(walk.dragY, -1.2, 1.2);
   walk.lookX += (lx - walk.lookX) * 0.07;
   walk.lookY += (ly - walk.lookY) * 0.07;
   // La cámara sigue al avance con un amortiguado corto: sin saltos al pausar, saltar o arrastrar la línea.
@@ -1221,11 +1226,6 @@ canvas.addEventListener('pointerup', (ev) => {
   if (Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 6) return;
   const u = pick(ev);
   if (u) selectUnit(u);
-});
-
-window.addEventListener('pointermove', (ev) => {
-  mouse.x = (ev.clientX / window.innerWidth) * 2 - 1;
-  mouse.y = (ev.clientY / window.innerHeight) * 2 - 1;
 });
 
 /* ------------------------------------------------------------------ */
