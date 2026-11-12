@@ -741,7 +741,7 @@ $$('[data-scroll]').forEach((a) =>
 /* ------------------------------------------------------------------ */
 
 /* Enlaces: cada apartamento y cada espacio del recorrido tienen dirección propia, para mandarla por chat. */
-const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const deep = location.hash.match(/^#\/(apto|recorrido)\/([^/]+)(?:\/(.+))?/);   // con qué enlace llegó el visitante
 const setHash = (h) => history.replaceState(null, '', h ? `#/${h}` : location.pathname + location.search);
 const here = () => location.href;
@@ -1162,15 +1162,23 @@ function openDeepLink() {
       if (stop) seekTour(stop.t + 0.002);
     });
   } else if (unit) {
-    lenis.scrollTo('#residencias', { offset: window.innerHeight * 2, duration: 1.4, onComplete: () => { enterExplore(); gsap.delayedCall(1.5, () => selectUnit(unit)); } });
+    jumpTo(availabilityY()).then(() => { enterExplore(); gsap.delayedCall(1.2, () => selectUnit(unit)); });
   }
 }
 
 $('#exploreBtn').addEventListener('click', enterExplore);
-$$('.js-explore').forEach((btn) => btn.addEventListener('click', () => {
-  // hasta el punto del viaje donde los pisos ya están separados
-  lenis.scrollTo('#residencias', { offset: window.innerHeight * 2, duration: 2, onComplete: enterExplore });
-}));
+// Salto directo a un punto del viaje, sin pasar por los capítulos intermedios: las franjas de tinta se cierran,
+// el scroll y la línea de tiempo se ponen de una vez en su sitio, y se abren ya en el destino.
+async function jumpTo(y) {
+  await gsap.to(walk, { veil: 1, duration: 0.35, ease: 'power2.in' });
+  lenis.scrollTo(y, { immediate: true, force: true });
+  ScrollTrigger.update();
+  tl.scrollTrigger.getTween()?.progress(1);              // sin esperar el suavizado del scroll
+  await gsap.to(walk, { veil: 0, duration: 0.45, ease: 'power2.out', delay: 0.05 });
+}
+// El punto del viaje donde los pisos ya están separados
+const availabilityY = () => $('#residencias').offsetTop + window.innerHeight * 2;
+$$('.js-explore').forEach((btn) => btn.addEventListener('click', () => jumpTo(availabilityY()).then(enterExplore)));
 $('#exitBtn').addEventListener('click', () => exitExplore());
 
 window.addEventListener('keydown', (ev) => {

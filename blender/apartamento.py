@@ -744,7 +744,7 @@ for loc, rot in (((1.67, 9.2, 1.02), RY), ((2.73, 9.2, 1.02), RY), ((7.86, 7.37,
 
 # --- Pasillo
 box((5.6, 0.75, 0.01), (3.6, 7.75, 0.005), M['rug'], 0.003)
-spots([(1.3, 7.75), (3.1, 7.75), (4.9, 7.75), (6.3, 7.75)])
+spots([(0.9, 7.75), (2.7, 7.75), (4.5, 7.75), (6.3, 7.75)])                 # pasillo: en línea, cada 1.8 m
 for x, c in ((2.2, 'ochre'), (4.4, 'green'), (5.6, 'terra')):
     box((0.5, 0.03, 0.7), (x, 7.215, 1.55), M['walnut'], 0.004)
     box((0.42, 0.01, 0.62), (x, 7.234, 1.55), M['paper'], 0)
@@ -790,7 +790,7 @@ cyl(0.008, 0.008, 0.6, (2.36, 8.85, 1.25), M['brass'], RX, 12)
 soft((0.05, 0.42, 0.6), (2.34, 8.85, 0.97), M['towel'])
 cyl(0.11, 0.08, 0.2, (2.2, 10.1, 0.11), M['pot'], seg=32, bv=0.006)
 foliage((2.2, 10.1, 0.55), 0.26, 34, M['leaf'], (0.26, 0.1), 1.2)
-spots([(1.2, 9.2), (0.55, 10.7)])
+spots([(1.2, 9.3), (1.2, 10.6)])                                             # baño: sobre el eje, tocador y ducha
 warm((1.2, 9.4, 2.3), 44)
 warm((1.2, 10.9, 2.3), 22)
 
@@ -827,7 +827,7 @@ for z in (0.92, 2.28):
     box((2.04, 0.05, 0.04), (4.2, 11.7, z), M['metal'], 0.003)
 box((2.1, 0.22, 0.03), (4.2, 11.62, 0.89), M['stone'], 0.004)
 box((2.1, 0.02, 0.3), (4.2, 11.62, 2.2), M['linen'], 0)
-spots([(3.6, 9.4), (4.8, 10.6)])
+spots([(3.5, 9.4), (5.0, 9.4), (3.5, 10.6), (5.0, 10.6)])                    # alcoba 2: retícula 2 × 2
 warm((4.3, 10.0, 2.3), 26)
 
 # --- Alcoba principal (x 6..10, y 8.4..11.6) + vestier (x 7..10, y 7.2..8.3)
@@ -867,7 +867,7 @@ for i in range(4):
     box((0.012, 0.012, 0.3), (x + (0.2 if i % 2 == 0 else -0.2), 7.846, 1.1), M['brass'], 0.003)
 box((0.9, 0.03, 1.7), (6.5, 8.42, 1.05), M['walnut'], 0.004)
 box((0.82, 0.012, 1.62), (6.5, 8.44, 1.05), M['mirror'], 0)
-spots([(7.6, 7.75), (9.0, 8.1), (7.4, 9.4), (8.6, 10.6)])
+spots([(7.9, 7.75), (9.1, 7.75), (7.3, 9.3), (8.9, 9.3), (7.3, 10.7), (8.9, 10.7)])   # vestier en línea; alcoba en retícula
 warm((8.0, 10.0, 2.3), 30)
 warm((8.4, 7.9, 2.3), 16)
 
@@ -878,7 +878,7 @@ slats(1.79, 45, 0.05, 2.49, 0.49, 0.76, M['oak'])
 slats(1.79, 45, 0.05, 1.61, 0.49, 0.76, M['oak'])
 # Luz lineal en techo de la zona social
 box((4.4, 0.03, 0.008), (2.5, 0.3, 2.796), M['led'], 0)            # solo sobre el mesón de la cocina
-spots([(6.0, 2.6), (8.2, 2.6), (6.0, 4.9), (8.2, 4.9), (1.2, 4.6), (1.2, 6.3), (6.3, 0.9), (8.3, 0.9)])
+spots([(6.2, 3.9), (8.2, 3.9), (6.2, 6.0), (8.2, 6.0), (1.2, 3.4), (1.2, 5.6)])   # sala: retícula sobre el tapete; entrada: en línea
 # Biblioteca abierta junto a la entrada
 for z in (0.06, 0.52, 0.98, 1.44, 1.9):
     box((0.3, 1.9, 0.03), (0.16, 3.2, z), M['oak'], 0.003)
@@ -1105,8 +1105,9 @@ WAY = [
     ((0.85, 6.30), (0.8, 8.0, 1.4), None),
     ((0.80, 7.40), (3.5, 7.75, 1.4), ('Pasillo', 'Baño, alcoba 2 y alcoba principal.')),
     ((1.10, 7.75), (1.3, 9.5, 1.2), None),
-    ((1.25, 8.60), (0.3, 9.4, 1.15), ('Baño', 'Porcelanato gran formato, ducha en vidrio.')),
+    ((1.25, 8.60), (0.3, 9.4, 1.15), ('Baño', 'Porcelanato gran formato, ducha en vidrio y sanitario suspendido.')),
     ((1.30, 9.20), (1.6, 11.2, 1.1), None),
+    ((1.10, 9.70), (2.1, 9.35, 0.5), None),                     # el sanitario, a la derecha de la puerta
     ((1.30, 9.10), (1.3, 7.6, 1.4), None),                      # media vuelta y sale
     ((1.35, 7.90), (3.2, 7.8, 1.4), ('Pasillo', 'Siguiente puerta: alcoba 2.')),
     ((2.60, 7.75), (3.1, 9.5, 1.1), None),
@@ -1285,8 +1286,9 @@ if MODE == 'glb':
     export_path()
     print('EXPORT apto', len(objs), 'objetos', os.path.getsize(os.path.join(OUT, 'apto.glb')) // 1024, 'KB', flush=True)
 elif MODE == 'real':
-    # Modo realista para tiempo real: la luz (sol, cielo, rebotes, lámparas) y el color de cada material
-    # se hornean en dos texturas. En el navegador no hay luces que calcular: corre en cualquier teléfono.
+    # Modo realista para tiempo real: la luz (sol, cielo, rebotes, lámparas) se hornea en tres texturas.
+    # El material de cada superficie (veta, tablas, piedra, tela) lo dibuja el navegador a resolución de
+    # pantalla y lo multiplica por esa luz: no hay luces que calcular y las texturas no se ven lavadas.
     SIZE = int(arg(6, 4096))
     GLASS = {'vidrio', 'esmerilado'}
     GLOW = {'bombillo', 'led', 'spot', 'pantalla'}
@@ -1338,7 +1340,7 @@ elif MODE == 'real':
         bpy.ops.uv.pack_islands(margin=0.0015)
         bpy.ops.object.mode_set(mode='OBJECT')
         print('UV', key, f'{time.time() - t0:.0f}s', flush=True)
-        # Dos horneados: la luz (con ruido de muestreo, que se limpia) y el color del material (nítido).
+        # Se hornea solo la luz, sin el color del material; el ruido de muestreo se limpia después.
         import numpy as np
         nodes_img = []
         for slot in ob.material_slots:
@@ -1363,7 +1365,6 @@ elif MODE == 'real':
 
         t0 = time.time()
         light = bake_pass('luz_' + key, {'DIRECT', 'INDIRECT'}, SAMPLES)
-        color = bake_pass('color_' + key, {'COLOR'}, 4)
         # Limpieza de la luz: desenfoque corto que ignora los texeles sin luz (caras ocultas, fondo),
         # así el grano desaparece sin que el negro de al lado manche los bordes.
         mask = (light.sum(axis=2, keepdims=True) > 1e-5).astype(np.float32)
@@ -1377,16 +1378,13 @@ elif MODE == 'real':
                     w2 += wk * np.roll(wsum, k, axis=axis)
                 acc, wsum = a2, w2
             acc, wsum = acc / np.maximum(wsum, 1e-6) * mask, mask.copy()
-        out = np.concatenate([color * acc, np.ones((SIZE, SIZE, 1), np.float32)], axis=2)
+        out = np.concatenate([acc * 0.5, np.ones((SIZE, SIZE, 1), np.float32)], axis=2)   # a media escala: deja aire para las zonas de sol
         img = bpy.data.images.new('lm_' + key, SIZE, SIZE, alpha=False, float_buffer=True)
         img.pixels.foreach_set(out.reshape(-1))
         print('BAKE', key, f'{time.time() - t0:.0f}s', flush=True)
         img.save_render(os.path.join(OUT, f'apto-{key}-4k.webp'), scene=scene)
         img.scale(SIZE // 2, SIZE // 2)
         img.save_render(os.path.join(OUT, f'apto-{key}-2k.webp'), scene=scene)
-        flat = bpy.data.materials.new('horneado_' + key)
-        me.materials.clear()
-        me.materials.append(flat)
     joined['vidrio'].hide_render = False
     select_only(list(joined.values()))
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'apto-real.glb'), export_format='GLB', use_selection=True,

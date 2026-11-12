@@ -26,7 +26,7 @@ const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfb
 const GLASS = ['vidrio', 'esmerilado'];
 // Versión del arte del apartamento. Se sube con cada exportación de Blender: como los archivos conservan
 // el nombre, sin esto el navegador seguiría mostrando el modelo y las texturas anteriores desde su caché.
-const ART = '?v=6';
+const ART = '?v=8';
 
 const DETAIL_GLSL = /* glsl */ `
   varying vec3 vWp;
@@ -197,9 +197,9 @@ export function createApartment() {
   };
 
   // Versión realista: mismo apartamento con muebles detallados y la luz horneada en Blender
-  // (sol, cielo, rebotes y lámparas ya vienen pintados en tres texturas). No hay luces que calcular,
+  // (sol, cielo, rebotes y lámparas ya vienen pintados en tres texturas de luz). No hay luces que calcular,
   // así que es incluso más liviana de dibujar que la tinta. Se descarga solo cuando se pide.
-  api.real = { ready: false, scene: null, pending: null, mirrors: [] };
+  api.real = { ready: false, scene: null, pending: null, mirrors: [], gain: { value: 1.75 } };   // gain: cuánto rinde la luz horneada
   api.loadReal = (renderer, light) => api.real.pending || (api.real.pending = (async () => {
     // 4K solo en equipos con memoria de sobra; el resto usa 2K, que pesa la cuarta parte
     const size = light || renderer.capabilities.maxTextureSize < 8192 || (navigator.deviceMemory || 8) < 8 ? '2k' : '4k';
@@ -242,41 +242,117 @@ export function createApartment() {
     ground.position.y = -floorY - 0.4;
     grounded.push([ground, 0.4]);
     rs.add(ground);
-    // La textura horneada trae la luz; de cerca se le suma un grano fino propio de cada superficie
-    // (revoque, veta, tejido), calculado por sombreador: la pared no se ve lavada al acercarse.
-    const flat = (map, grain) => {
-      const m = new THREE.MeshBasicMaterial({ map, fog: false });
-      m.customProgramCacheKey = () => `fino-${grain.length}`;
+    // Materiales de la versión realista. La textura horneada solo trae la luz; el color y el dibujo de cada
+    // superficie (veta, tablas, vetas de piedra, tejido, pintura) se calculan por sombreador en el espacio
+    // real, a resolución de pantalla: de cerca se ven definidos, no lavados.
+    // nombre del material en Blender → [tipo de superficie, color, segundo color]
+    const SURF = {
+      pared: ['PAINT', 0xf1ece3], techo: ['PAINT', 0xfaf8f4], papel: ['PAINT', 0xf5f0e6], baldosa: ['PAINT', 0xc9c2b4],
+      piso: ['PLANKS', 0xb8935f, 0xd3b488], roble: ['WOOD', 0xa67f52, 0xc9a577], nogal: ['WOOD', 0x4f3524, 0x7a563a],
+      piedra: ['STONE', 0xf2efe9, 0xb9b3a8], porcelanato: ['CONCRETE', 0xc2bcb1, 0xaba59a],
+      lino: ['FABRIC', 0xd8cdbb], cojin: ['FABRIC', 0xe9e2d6], terracota: ['FABRIC', 0xb1603c], verde: ['FABRIC', 0x3b5045],
+      duvet: ['FABRIC', 0xf4f1ea], terciopelo: ['FABRIC', 0x35493f], cortina: ['FABRIC', 0xf6f2ea],
+      boucle: ['BOUCLE', 0xb1603c], lana: ['BOUCLE', 0xe4dccd], lana2: ['BOUCLE', 0xa98a68], toalla: ['BOUCLE', 0xe8e2d6],
+      mueble: ['PLAIN', 0x2f3d37], fieltro: ['PLAIN', 0x24221f], espejo: ['PLAIN', 0xcfd4d6],
+    };
+    const SURF_GLSL = /* glsl */ `
+      uniform vec3 uC1, uC2;
+      uniform float uGain, uSoft;
+      varying vec3 vWp;
+      float fh(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      float fn(vec3 x) {
+        vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(fh(i), fh(i + vec3(1, 0, 0)), f.x), mix(fh(i + vec3(0, 1, 0)), fh(i + vec3(1, 1, 0)), f.x), f.y),
+                   mix(mix(fh(i + vec3(0, 0, 1)), fh(i + vec3(1, 0, 1)), f.x), mix(fh(i + vec3(0, 1, 1)), fh(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+      }
+      float fbm(vec3 p) { return (fn(p) * 0.5 + fn(p * 2.03) * 0.25 + fn(p * 4.01) * 0.125 + fn(p * 8.1) * 0.0625) / 0.9375; }
+      vec3 surface(vec3 p) {
+        float dist = distance(p, cameraPosition);
+        float near = 1.0 - smoothstep(2.0, 7.0, dist), close = 1.0 - smoothstep(0.6, 2.4, dist);   // el detalle fino se funde con la distancia
+        vec3 c = uC1;
+        #if defined(SURF_WOOD) || defined(SURF_PLANKS)
+          vec3 n = abs(normalize(cross(dFdx(p), dFdy(p))));
+          // la veta corre a lo largo: en X sobre caras horizontales, en vertical sobre puertas y paneles
+          vec3 q = n.y > 0.7 ? vec3(p.x * 1.1, p.y * 15.0, p.z * 15.0) : vec3(p.x * 15.0, p.y * 1.1, p.z * 15.0);
+          #ifdef SURF_PLANKS
+            float row = floor(p.z / 0.16), xx = p.x + fh(vec3(row, 1.0, 2.0)) * 1.8;
+            float id = fh(vec3(row, floor(xx / 1.8), 7.0));                       // cada tabla tiene su tono y su veta
+            q += id * 40.0;
+          #endif
+          float g = fbm(q + fbm(q * 0.45) * 1.4);
+          c = mix(uC1, uC2, smoothstep(0.25, 0.75, g));
+          c *= 0.95 + 0.1 * mix(0.5, fn(q * vec3(1.0, 5.0, 5.0)), near);
+          #ifdef SURF_PLANKS
+            c *= 0.9 + 0.2 * id;
+            float dz = 0.08 - abs(fract(p.z / 0.16) - 0.5) * 0.16, dx = 0.9 - abs(fract(xx / 1.8) - 0.5) * 1.8;   // distancia a la junta
+            float joint = max(1.0 - smoothstep(0.0008, 0.0008 + fwidth(p.z) * 1.2, dz), 1.0 - smoothstep(0.0008, 0.0008 + fwidth(p.x) * 1.2, dx));
+            c *= 1.0 - 0.5 * joint * near;
+          #endif
+        #endif
+        #ifdef SURF_STONE
+          float v = fbm(p * 1.3 + fbm(p * 0.9) * 1.6);
+          c = mix(uC1, uC2, (1.0 - smoothstep(0.0, 0.035, abs(v - 0.5))) * 0.75 + (fbm(p * 7.0) - 0.5) * 0.12);
+        #endif
+        #ifdef SURF_CONCRETE
+          c = mix(uC1, uC2, fbm(p * 3.5)) * (1.0 + (fn(p * 90.0) - 0.5) * 0.04 * near);
+        #endif
+        #ifdef SURF_FABRIC
+          c *= 1.0 + (sin(p.x * 760.0) * sin(p.y * 760.0) + sin(p.z * 760.0) * sin(p.y * 760.0)) * 0.035 * close + (fn(p * 230.0) - 0.5) * 0.08 * near;
+        #endif
+        #ifdef SURF_BOUCLE
+          c *= 1.0 + (fbm(p * 140.0) - 0.5) * 0.22 * near;
+        #endif
+        #ifdef SURF_PAINT
+          c *= 1.0 + (fn(p * 110.0) * 0.6 + fn(p * 370.0) * 0.4 - 0.5) * 0.03 * near;
+        #endif
+        return c;
+      }`;
+    const lightmaps = { arq, tel, mob }, surfaces = {};
+    const surfaceMat = (group, name) => {
+      const id = `${group}/${name}`;
+      if (surfaces[id]) return surfaces[id];
+      const [kind, c1, c2] = SURF[name] || ['PLAIN', (MATS[name] || [0xe8e4dc])[0]];
+      const m = new THREE.MeshBasicMaterial({ map: lightmaps[group], fog: false });
+      const uniforms = { uC1: { value: new THREE.Color(c1) }, uC2: { value: new THREE.Color(c2 ?? c1) }, uGain: api.real.gain,
+        // la luz se lee algo desenfocada (más en muros y techos, que son planos grandes): borra el moteado del horneado
+        uSoft: { value: group === 'arq' ? 1.6 : 0.8 } };
+      m.defines = { [`SURF_${kind}`]: '' };
+      m.customProgramCacheKey = () => `superficie-${kind}`;
+      m.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, uniforms);
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
+          .replace('#include <project_vertex>', '#include <project_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', `#include <common>\n${SURF_GLSL}`)
+          .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = surface(vWp) * texture2D(map, vMapUv, uSoft).rgb * uGain;');   // material × luz horneada
+      };
+      // Los marcos y herrajes tocan el muro: van un pelo por delante para que no parpadeen
+      if (group === 'mob') Object.assign(m, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      return (surfaces[id] = m);
+    };
+    // Lo encendido (pantallas, bombillos, focos) no recibe luz, pero se aclara hacia el centro y se apaga
+    // hacia el borde: una esfera se lee como esfera y no como un disco plano.
+    const lamps = {};
+    const lamp = (color) => {
+      if (lamps[color]) return lamps[color];
+      const m = new THREE.MeshBasicMaterial({ color, fog: false });
+      m.customProgramCacheKey = () => 'lampara';
       m.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader
           .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
           .replace('#include <project_vertex>', '#include <project_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
         sh.fragmentShader = sh.fragmentShader
-          .replace('#include <common>', `#include <common>
-            varying vec3 vWp;
-            float fh(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
-            float fn(vec3 x) {
-              vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
-              return mix(mix(mix(fh(i), fh(i + vec3(1, 0, 0)), f.x), mix(fh(i + vec3(0, 1, 0)), fh(i + vec3(1, 1, 0)), f.x), f.y),
-                         mix(mix(fh(i + vec3(0, 0, 1)), fh(i + vec3(1, 0, 1)), f.x), mix(fh(i + vec3(0, 1, 1)), fh(i + vec3(1, 1, 1)), f.x), f.y), f.z);
-            }`)
+          .replace('#include <common>', '#include <common>\nvarying vec3 vWp;')
           .replace('#include <map_fragment>', `#include <map_fragment>
             {
-              vec3 p = vWp;
-              float dist = distance(p, cameraPosition), near = 1.0 - smoothstep(1.2, 5.0, dist), g = 0.0;
-              ${grain}
-              diffuseColor.rgb *= 1.0 + g;
+              vec3 n = normalize(cross(dFdx(vWp), dFdy(vWp)));
+              float facing = abs(dot(n, normalize(cameraPosition - vWp)));
+              diffuseColor.rgb *= mix(0.74, 1.0, pow(facing, 0.7));
             }`);
       };
-      return m;
+      return (lamps[color] = m);
     };
-    // Cada grupo tiene su superficie: revoque con manchas suaves, veta fina a lo largo, y trama de tejido.
-    const GRAIN = {
-      arq: 'g = (fn(p * 95.0) * 0.6 + fn(p * 340.0) * 0.4 - 0.5) * 0.035 * near + (fn(p * 1.4) - 0.5) * 0.035;',
-      mob: 'g = ((fn(vec3(p.x * 12.0, p.y * 150.0, p.z * 150.0)) + fn(vec3(p.x * 150.0, p.y * 150.0, p.z * 12.0))) * 0.5 - 0.5) * 0.085 * near;',
-      tel: 'float close = 1.0 - smoothstep(0.6, 2.4, dist); g = (sin(p.x * 760.0) * sin(p.y * 760.0) + sin(p.z * 760.0) * sin(p.y * 760.0)) * 0.03 * close + (fn(p * 240.0) - 0.5) * 0.09 * near;',
-    };
-    const baked = { arq: flat(arq, GRAIN.arq), tel: flat(tel, GRAIN.tel), mob: flat(mob, GRAIN.mob) };   // arquitectura, textiles, resto del mobiliario
     const glass = {
       vidrio: new THREE.MeshBasicMaterial({ color: 0xdfeaf0, transparent: true, opacity: 0.1, depthWrite: false, fog: false }),
       esmerilado: new THREE.MeshBasicMaterial({ color: 0xeef3f4, transparent: true, opacity: 0.45, depthWrite: false, fog: false }),
@@ -286,12 +362,10 @@ export function createApartment() {
       let group = o;
       while (group.parent && !/^(arq|tel|mob|vidrio|luz)/.test(group.name)) group = group.parent;
       const key = group.name.match(/^(arq|tel|mob|vidrio|luz)/)?.[1], name = o.material.name;
-      if (baked[key]) o.material = baked[key];
+      if (lightmaps[key]) o.material = surfaceMat(key, name);
       else if (key === 'vidrio') { o.material = glass[name] || glass.vidrio; o.renderOrder = 2; }
-      else o.material = new THREE.MeshBasicMaterial({ color: GLOW[name] || 0xfff1d6, fog: false });
+      else o.material = lamp(GLOW[name] || 0xfff1d6);
     });
-    // Los marcos tocan el muro: van un pelo por delante para que no parpadeen
-    Object.assign(baked.mob, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     rs.add(gltf.scene);
     // Cordillera en tres planos: cada uno más azul y más claro con la distancia
     for (const [x, base, amp, seed, color] of [[900, 60, 300, 4, 0xbccbd9], [680, 10, 190, 2.4, 0x9fb4c2], [480, -30, 110, 1, 0x7f9a93]]) {
