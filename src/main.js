@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
@@ -78,7 +79,10 @@ renderer.shadowMap.autoUpdate = false;
 const ink = createInk(renderer, { paper: BG, ink: INK, ochre: 0x9c8b5e });
 // Estilo tinta por defecto. Agrega ?limpio a la URL para ver la maqueta sin el pase de tinta.
 const INKMODE = !new URLSearchParams(location.search).has('limpio');
-const tour = createTour(renderer);
+// En pantallas pequeñas o con ahorro de datos se usa el recorrido liviano (mitad de cuadros, 640 px).
+const conn = navigator.connection || {};
+const lightTour = window.matchMedia('(max-width: 820px)').matches || conn.saveData === true || /(^|-)2g|3g/.test(conn.effectiveType || '');
+const tour = createTour(renderer, lightTour ? '/tour-m/' : '/tour/');
 const minimap = createMinimap($('#minimap'));
 tour.load().then(() => minimap.setPath(tour.path())).catch((err) => console.warn('Recorrido no disponible', err));
 
@@ -211,6 +215,7 @@ const schematicCity = [];   // cubos provisionales del barrio; se retiran al car
 let schMode = true;
 {
   const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);   // los modelos van comprimidos con meshopt
   const loadModel = (name) => new Promise((res, rej) => loader.load(`/models/${name}.glb`, (g) => {
     g.scene.traverse((o) => {
       if (!o.isMesh) return;
@@ -560,7 +565,8 @@ function render() {
     const W = window.innerWidth, H = window.innerHeight;
     const target = ex.on || ex.exiting || H > W ? 0 : state.shift;
     viewShift += (target - viewShift) * 0.06;
-    camera.setViewOffset(W, H, -viewShift * W, 0, W, H);
+    // En vertical la torre sube para dejar el texto abajo.
+    camera.setViewOffset(W, H, -viewShift * W, H > W && !ex.on && !ex.exiting ? H * 0.2 : 0, W, H);
   }
 
   clouds.rotation.y += dt * 0.006;
@@ -717,7 +723,7 @@ $$('[data-scroll]').forEach((a) =>
   createIntro({
     getProgress: () => (performance.now() - t0 > 9000
       ? 1                                                        // si algo no carga, no se queda pegada
-      : 0.2 + 0.55 * Math.min(1, tour.progress() / 0.3) + (detail.ready ? 0.25 : 0)),
+      : 0.2 + 0.55 * Math.min(1, tour.progress() / 0.06) + (detail.ready ? 0.25 : 0)),
     onEnter: () => {
       gsap.to(state, { intro: 0, duration: 3.4, ease: 'power3.out' });
       gsap.to(state, { build: 1, duration: 3.0, ease: 'power1.inOut', delay: 0.15 });

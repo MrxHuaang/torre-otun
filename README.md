@@ -24,6 +24,7 @@ Sala de ventas viva para un edificio que todavía no existe: recórrelo por fuer
 - **Recorrido interior continuo.** 760 cuadros pre-renderizados en Blender: entras por la puerta, cocina, sala, balcón, pasillo, baño, alcobas. El scroll decide el cuadro y un minimapa marca dónde vas.
 - **Barrio con sentido.** Casas con techo a dos aguas, edificios bajos con locales, calles, árboles y personas a escala.
 - **Barra de avance propia.** Los capítulos son paradas; se puede hacer clic o arrastrar.
+- **Carga liviana.** Modelos comprimidos con meshopt (6.5 MB a 1.2 MB). El recorrido se descarga en segundo plano mientras ves la torre, y en móvil o con ahorro de datos usa una versión de 6 MB.
 - Respeta `prefers-reduced-motion`.
 
 ## Cómo está hecho

@@ -652,3 +652,29 @@ body { font-weight: 400; }
 /* La placa del recorrido solo existe estando dentro del apartamento */
 #interior .plate, #interior .plate.rv, .in #interior .plate.rv { opacity: 0; visibility: hidden; transform: translateY(16px); transition: opacity 0.5s, transform 0.5s var(--ease), visibility 0s 0.5s; }
 .inside #interior .plate, .inside #interior .plate.rv { opacity: 1; visibility: visible; transform: none; transition: opacity 0.5s 0.15s, transform 0.5s var(--ease) 0.15s; }
+
+
+/* Móvil: la torre arriba, el texto abajo, nada se pisa */
+@media (max-width: 820px) {
+  .top { padding: 18px 16px; gap: 10px; }
+  .brand { white-space: nowrap; font-size: 17px; padding: 4px 10px 3px 7px; gap: 7px; }
+  .brand svg { width: 20px; height: 20px; }
+  .btn.small { white-space: nowrap; min-height: 38px; padding: 0 12px; font-size: 9.5px; letter-spacing: 0.16em; }
+  .chapter { padding: 0 16px; }
+  .block, .block.mid, #hero .block, .block.left, .block.right { justify-content: flex-end; padding: 80px 0 4vh; max-width: 100%; }
+  .display { font-size: clamp(44px, 15vw, 84px); }
+  .display.mid, .plate .display.mid { font-size: clamp(30px, 8.6vw, 46px); }
+  .eyebrow { font-size: 10px; margin-bottom: 10px; }
+  .lead { font-size: 16px; margin-top: 14px; padding: 8px 12px; }
+  .copy { font-size: 15px; margin-top: 10px; }
+  .plate, .plate.wide { padding: 18px 18px 20px; max-width: 100%; }
+  .facts { gap: 6px 14px; margin-top: 12px; }
+  .facts b { font-size: 21px; }
+  .facts span, .obra small { font-size: 12px; }
+  .block .btn { margin-top: 16px; min-height: 46px; }
+  .row { gap: 10px; margin-top: 16px; }
+  .counts { margin: 14px 0 0; gap: 18px; }
+  .counts div b { font-size: 32px; }
+  .gate-title h2 { font-size: clamp(56px, 21vw, 120px); }
+  .frame { display: none; }
+}
