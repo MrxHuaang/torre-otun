@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.claude/
+.vercel/
+*.log
+
+# Salidas intermedias de Blender
+blender/out/
+blender/__pycache__/
+
+# Parches de una sola vez usados durante el desarrollo
+/patch_*.py
+blender/fix*.py
+blender/probe.py
+
+public/tour/_tmp/
+
+.impeccable/
+blender/*.txt

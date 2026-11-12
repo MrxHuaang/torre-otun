@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Torre Otún | Sala de ventas viva</title>
+  <meta name="description" content="Demo: recorrido guiado, estructura a la vista, disponibilidad y cotizador para un proyecto de vivienda sobre planos." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Limelight&family=Jost:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="locked">
+  <canvas id="stage" aria-hidden="true"></canvas>
+  <div class="veil" id="veil" aria-hidden="true"><i></i><i></i></div>
+
+  <!-- Portada: emblema que se dibuja mientras carga, luego el título entra letra por letra -->
+  <div class="gate" id="gate">
+    <div class="gate-half up"></div>
+    <div class="gate-half down"></div>
+    <div class="gate-light" aria-hidden="true"></div>
+    <svg class="gate-brush" id="gateBrush" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+    <p class="gate-word">Torre Otún</p>
+    <div class="gate-emblem-wrap"><svg class="gate-emblem" id="gateEmblem" viewBox="0 0 200 200" role="img" aria-label="Emblema de Torre Otún"></svg></div>
+    <svg class="gate-rule" viewBox="0 0 320 12" aria-hidden="true"><path id="gateRule" pathLength="1" d="M2 6C40 3 82 9 120 6S200 4 242 7S300 5 318 6" /></svg>
+    <div class="gate-title">
+      <span class="pre">Recorre la</span>
+      <h2 aria-label="Torre Otún"><span class="w">Torre</span><span class="w">Otún</span></h2>
+    </div>
+    <div class="gate-btn-wrap"><button class="btn" id="gateBtn" disabled>Entrar</button></div>
+    <svg class="gate-tide" id="gateTide" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true"></svg>
+  </div>
+
+  <header class="top">
+    <a class="brand" href="#hero" data-scroll>Torre Otún</a>
+    <span class="top-actions">
+      <a class="btn small" href="#cierre" data-scroll>Agendar visita</a>
+    </span>
+  </header>
+  <div class="progress" hidden><i id="progressBar"></i></div>
+
+  <!-- Barra de avance propia: capítulos como paradas, se puede arrastrar -->
+  <nav class="scroller" id="scroller" aria-label="Capítulos">
+    <i class="track" aria-hidden="true"></i>
+    <i class="thumb" id="scrollThumb" aria-hidden="true"></i>
+    <a href="#hero" data-scroll><b>I</b><span>Torre</span></a>
+    <a href="#lugar" data-scroll><b>II</b><span>Lugar</span></a>
+    <a href="#estructura" data-scroll><b>III</b><span>Estructura</span></a>
+    <a href="#residencias" data-scroll><b>IV</b><span>Apartamentos</span></a>
+    <a href="#interior" data-scroll><b>V</b><span>Por dentro</span></a>
+    <a href="#cierre" data-scroll><b>VI</b><span>Visita</span></a>
+  </nav>
+
+  <div class="labels" id="labels" aria-hidden="true"></div>
+
+  <main id="journey">
+    <section class="chapter" id="hero" style="--h:240vh">
+      <div class="block left mid">
+        <p class="eyebrow rv">Pinares, Pereira. Entrega 2029</p>
+        <h1 class="display">
+          <span class="line"><span>Torre</span></span>
+          <span class="line"><span>Otún</span></span>
+        </h1>
+        <p class="lead rv" style="--d:.25s">56 apartamentos frente a la cordillera. Recórrela completa antes de que exista.</p>
+        <button class="btn rv js-explore" style="--d:.4s">Ver disponibilidad</button>
+      </div>
+    </section>
+
+    <section class="chapter" id="lugar" style="--h:320vh">
+      <div class="block left">
+        <div class="plate rv">
+          <h2 class="display mid">
+            <span class="line"><span>Cerca</span></span>
+            <span class="line"><span>de todo.</span></span>
+          </h2>
+          <p class="copy">En la ladera de Pinares. Parque, avenida y aeropuerto a pocos minutos. El ruido, lejos.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter" id="estructura" style="--h:400vh">
+      <div class="block right">
+        <div class="plate wide rv">
+          <h2 class="display mid">
+            <span class="line"><span>Hecha para</span></span>
+            <span class="line"><span>quedarse.</span></span>
+          </h2>
+          <p class="copy">Después del sismo de agosto, lo que importa está dentro de los muros. Aquí la torre se abre y queda el esqueleto.</p>
+          <ul class="facts">
+            <li><b>18 m</b><span>Pilotes hasta suelo firme</span></li>
+            <li><b>15</b><span>Columnas continuas, de cimiento a cubierta</span></li>
+            <li><b>NSR-10</b><span>Diseño sismo resistente con revisión independiente</span></li>
+            <li><b>X</b><span>Disipadores de energía en fachada</span></li>
+          </ul>
+          <div class="obra">
+            <div><span>Avance de obra</span><b>38%</b></div>
+            <i><em style="width:38%"></em></i>
+            <small>Cimentación terminada. Estructura en piso 5.</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter" id="residencias" style="--h:320vh">
+      <div class="block left">
+        <div class="plate rv">
+          <h2 class="display mid">
+            <span class="line"><span>Elige</span></span>
+            <span class="line"><span>tu piso.</span></span>
+          </h2>
+          <p class="copy">14 pisos, 4 apartamentos por piso. Precio y disponibilidad al día, sin llamar a nadie.</p>
+          <div class="counts" id="counts"></div>
+          <button class="btn" id="exploreBtn">Ver disponibilidad</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter" id="interior" style="--h:1856vh">
+      <div class="block left low">
+        <div class="plate rv">
+          <p class="eyebrow">Apartamento tipo A, piso 14</p>
+          <h2 class="display mid tour-title" id="tourTitle">Sala comedor</h2>
+          <p class="copy" id="tourText">Sala, comedor y cocina en un solo espacio.</p>
+          <i class="tour-bar"><em id="tourStep"></em></i>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter" id="cierre" style="--h:100vh">
+      <div class="block left mid">
+        <h2 class="display">
+          <span class="line"><span>Ven a</span></span>
+          <span class="line"><span>verla.</span></span>
+        </h2>
+        <p class="lead rv" style="--d:.25s">Sala de ventas en la Av. Circunvalar. Agenda y recórrela con un asesor.</p>
+        <div class="row rv" style="--d:.35s">
+          <button class="btn" data-toast="Demo: aquí se agenda la visita con un asesor.">Agendar visita</button>
+          <button class="btn ghost js-explore">Ver disponibilidad</button>
+        </div>
+        <p class="fine rv" style="--d:.45s">Proyecto ficticio. Cifras, tiempos y precios ilustrativos.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modo exploración -->
+  <div class="explore" id="explore" aria-hidden="true">
+    <button class="btn small back" id="exitBtn">← Volver al recorrido</button>
+    <aside class="rail" id="rail" aria-label="Pisos"></aside>
+    <div class="legend">
+      <span><i class="s-disponible"></i>Disponible</span>
+      <span><i class="s-separado"></i>Separada</span>
+      <span><i class="s-vendido"></i>Vendida</span>
+    </div>
+    <p class="tip" id="tip">Arrastra para girar. Toca un apartamento.</p>
+    <aside class="panel" id="panel"></aside>
+  </div>
+
+  <!-- Marco de viñeta y sello que invita a girar la torre -->
+  <div class="frame" aria-hidden="true"></div>
+  <div class="spin-badge" id="spinBadge" aria-hidden="true">
+    <svg viewBox="0 0 120 120">
+      <defs><path id="spinPath" d="M60 60m-44 0a44 44 0 1 1 88 0a44 44 0 1 1 -88 0" /></defs>
+      <circle cx="60" cy="60" r="58" />
+      <text><textPath href="#spinPath">ARRASTRA Y GIRA · TOCA UN PISO · </textPath></text>
+      <path class="hand" d="M46 62c8-10 20-10 28 0M74 62l-1-8M74 62l-8 1M46 62l1-8M46 62l8 1" />
+    </svg>
+  </div>
+  <div class="minimap" id="minimap" aria-hidden="true"></div>
+  <div class="floor-tip" id="floorTip" aria-hidden="true"></div>
+  <div class="burst" id="burst" aria-hidden="true"></div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="cursor" id="cursor" aria-hidden="true" hidden><span></span></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
