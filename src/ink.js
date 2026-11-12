@@ -128,6 +128,10 @@ const inkMaterial = new THREE.ShaderMaterial({
 export function createInk(renderer, { paper, ink, ochre, msaa = true, fine = true }) {
   if (fine) inkMaterial.defines = { FINE_EDGES: '' };
   const rtColor = new THREE.WebGLRenderTarget(1, 1, { samples: msaa ? 4 : 0 });
+  // En modo fino, normales y profundidad se dibujan al doble de resolución por lado. El contorno toma cuatro
+  // muestras dentro de cada píxel de pantalla, cada una en un texel distinto: suavizado real. Sin esto el trazo
+  // salta de píxel en píxel cuando la cámara se mueve despacio y parece que las líneas se arrastran.
+  const AUX = fine ? 2 : 1;
   const rtAux = new THREE.WebGLRenderTarget(1, 1, { depthTexture: new THREE.DepthTexture(1, 1) });
   rtAux.depthTexture.minFilter = rtAux.depthTexture.magFilter = THREE.NearestFilter;
   const quad = new FullScreenQuad(inkMaterial);
@@ -144,7 +148,7 @@ export function createInk(renderer, { paper, ink, ochre, msaa = true, fine = tru
   return {
     setSize(w, h, dpr) {
       rtColor.setSize(Math.round(w * dpr), Math.round(h * dpr));
-      rtAux.setSize(Math.round(w * dpr), Math.round(h * dpr));
+      rtAux.setSize(Math.round(w * dpr) * AUX, Math.round(h * dpr) * AUX);
       u.uRes.value.set(Math.round(w * dpr), Math.round(h * dpr));
       u.uDpr.value = dpr;
     },

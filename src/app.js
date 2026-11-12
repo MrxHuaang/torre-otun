@@ -404,6 +404,7 @@ const state = {
 const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null, floor: null };
 // Cuánto está abierta la torre hasta el esqueleto. Al explorar disponibilidad siempre va completa.
 const xr = () => (ex.on || ex.exiting ? 0 : state.xray);
+const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, unit: null, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
 const view = { w: 1, h: 1 };
 
@@ -527,6 +528,8 @@ function render() {
   // Con la portada encima no se ve la escena: se dibuja 1 de cada 30 cuadros, solo para dejar todo compilado.
   if (state.intro > 0.999 && ++gateFrames % 30) return;
   adapt(dt);
+  mouse.sx += (mouse.x - mouse.sx) * 0.05;
+  mouse.sy += (mouse.y - mouse.sy) * 0.05;
   veil.style.setProperty('--v', walk.veil);
 
   if (walk.on) return renderWalk(dt);
@@ -571,7 +574,7 @@ function render() {
     controls.update();
   } else {
     const k = 1 + state.intro * 1.3;
-    camera.position.set(state.px * k, state.py * k + state.intro * 40, state.pz * k);   // sin vaivén con el cursor: el dibujo se queda quieto
+    camera.position.set(state.px * k + mouse.sx * 8, state.py * k + state.intro * 40 - mouse.sy * 5, state.pz * k);
     look.set(state.tx, state.ty, state.tz);
     camera.lookAt(look);
   }
@@ -771,6 +774,7 @@ const hud = {
 };
 const MODEL_UNIT = UNITS.find((u) => u.codigo === '1401');   // el apartamento que se recorre si no se eligió otro
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 // Paradas de la línea: los espacios con nombre propio. Los pasillos son tránsito, no parada.
 // Van repartidas por igual en la línea aunque unas estén más cerca que otras en el camino.
@@ -871,8 +875,8 @@ function renderWalk(dt) {
   if (!walk.busy) setEnded(walk.t >= 1 ? true : walk.t < 0.995 ? false : walk.ended);
   // La mirada sigue al cursor (o al dedo, mientras arrastra) y vuelve sola al frente.
   if (!look2.active) { walk.dragX *= 0.94; walk.dragY *= 0.94; }
-  const lx = THREE.MathUtils.clamp(walk.dragX, -1.8, 1.8);   // la mirada solo gira al arrastrar, no al pasar el cursor
-  const ly = THREE.MathUtils.clamp(walk.dragY, -1.2, 1.2);
+  const lx = THREE.MathUtils.clamp((finePointer ? mouse.x * 0.55 : 0) + walk.dragX, -1.8, 1.8);
+  const ly = THREE.MathUtils.clamp((finePointer ? mouse.y * 0.5 : 0) + walk.dragY, -1.2, 1.2);
   walk.lookX += (lx - walk.lookX) * 0.07;
   walk.lookY += (ly - walk.lookY) * 0.07;
   // La cámara sigue al avance con un amortiguado corto: sin saltos al pausar, saltar o arrastrar la línea.
@@ -1226,6 +1230,11 @@ canvas.addEventListener('pointerup', (ev) => {
   if (Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 6) return;
   const u = pick(ev);
   if (u) selectUnit(u);
+});
+
+window.addEventListener('pointermove', (ev) => {
+  mouse.x = (ev.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = (ev.clientY / window.innerHeight) * 2 - 1;
 });
 
 /* ------------------------------------------------------------------ */
