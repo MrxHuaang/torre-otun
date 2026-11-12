@@ -284,8 +284,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @media (hover: hover) { .minimap .room:hover { fill: rgba(140, 47, 37, 0.12); } }
 .minimap text { pointer-events: none; }
 .minimap .area { font-size: 7.5px; fill: var(--accent); }
-.tour-hint { position: absolute; left: 50%; top: 100px; transform: translateX(-50%); white-space: nowrap; padding: 6px 10px; background: var(--bg); border: 1px solid var(--ink); font-weight: 500; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; pointer-events: none; animation: hint 7s 2s both; }
-@keyframes hint { 0%, 100% { opacity: 0; } 12%, 80% { opacity: 1; } }
 
 .minimap { position: fixed; right: var(--edge); bottom: 118px; z-index: 21; width: min(230px, 22vw); padding: 10px; background: var(--bg); border: 1.5px solid var(--ink); opacity: 0; transform: translateY(16px); pointer-events: none; transition: opacity 0.4s, transform 0.4s var(--ease); }
 .inside .minimap { opacity: 1; transform: none; transition-delay: 0.3s; }
@@ -370,7 +368,8 @@ input[type='range']::-moz-range-thumb { width: 13px; height: 13px; background: v
   .brand { gap: 7px; padding: 4px 10px 3px 7px; font-size: 17px; }
   .brand svg { width: 20px; height: 20px; }
   .btn.small { min-height: 40px; padding: 0 12px; font-size: 9.5px; letter-spacing: 0.16em; }
-  .top-visit, .scroller, .frame, .spin-badge, .note, .tip, .tour-hint { display: none; }
+  /* en teléfono, lo mínimo: sin plano, sin anotaciones, sin texto secundario en el recorrido */
+  .top-visit, .scroller, .frame, .spin-badge, .note, .tip, .minimap, .tour-plate .copy, .floor-tip { display: none; }
 
   .chapter { padding: 0 16px; }
   .block, .block.mid, .block.right { justify-content: flex-end; max-width: 100%; margin: 0; padding: 80px 0 max(22px, env(safe-area-inset-bottom)); }
@@ -403,12 +402,9 @@ input[type='range']::-moz-range-thumb { width: 13px; height: 13px; background: v
   .tour-stops .on span { opacity: 1; }
   .tour-stops button:first-child.on span { left: 0; transform: none; }
   .tour-stops button:last-child.on span { left: auto; right: 0; transform: none; }
-  .tour-plate { bottom: calc(90px + env(safe-area-inset-bottom)); width: auto; right: 150px; padding: 12px 14px 14px; }
+  .tour-plate { bottom: calc(90px + env(safe-area-inset-bottom)); width: auto; right: auto; padding: 12px 14px 14px; }
   .tour-plate .eyebrow { margin-bottom: 6px; font-size: 9px; }
   .tour-plate .display.mid { font-size: 26px; }
-  .tour-plate .copy { margin-top: 6px; font-size: 13px; line-height: 1.35; }
-  .minimap { bottom: calc(90px + env(safe-area-inset-bottom)); width: 122px; padding: 6px; }
-  .minimap text { display: none; }
 
   .rail { top: 120px; left: 0; right: 0; transform: none; flex-direction: row; gap: 14px; padding: 0 16px; overflow-x: auto; }
   .rail button { grid-template-columns: auto; padding: 8px 2px; }
@@ -428,5 +424,5 @@ input[type='range']::-moz-range-thumb { width: 13px; height: 13px; background: v
 
 @media (prefers-reduced-motion: reduce) {
   .line > span, .rv { transition-duration: 0.01s; }
-  .gate-brush .sheet, .spin-badge svg, .spin-badge .hand, .tour-hint, .tour-pulse.go { animation: none; }
+  .gate-brush .sheet, .spin-badge svg, .spin-badge .hand, .tour-pulse.go { animation: none; }
 }

@@ -393,6 +393,8 @@ const state = {
   shift: 0.2,   // la torre se corre a un lado para no quedar debajo del texto
 };
 const ex = { on: false, exiting: false, explode: 0, hover: null, selected: null, floor: null };
+// Cuánto está abierta la torre hasta el esqueleto. Al explorar disponibilidad siempre va completa.
+const xr = () => (ex.on || ex.exiting ? 0 : state.xray);
 const walk = { on: false, busy: false, t: 0, playing: false, seeking: false, real: false, wantReal: true, ended: false, unit: null, key: -1, veil: 0, st: 0, lookX: 0, lookY: 0, dragX: 0, dragY: 0, shadows: false };
 const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
 const view = { w: 1, h: 1 };
@@ -425,9 +427,9 @@ const ramp = (t, a, b, c, d) => Math.max(0, Math.min(1, (t - a) / (b - a), (d - 
 const NOTES = [
   { t: 'Celosías en madera', p: [12.4, 34, 0], side: 'r', show: (t) => ramp(t, 0.15, 0.5, 1.1, 1.4) * (1 - state.intro) },
   { t: 'Terraza con pérgola', p: [-14, 10.5, 9], side: 'l', show: (t) => ramp(t, 0.15, 0.5, 1.1, 1.4) * (1 - state.intro) },
-  { t: 'Núcleo de muros', p: [0, 40, 0], side: 'l', show: () => THREE.MathUtils.smoothstep(state.xray, 0.75, 0.95) },
-  { t: 'Disipadores en X', p: [12, 24, 8], side: 'r', show: () => THREE.MathUtils.smoothstep(state.xray, 0.75, 0.95) },
-  { t: 'Pilotes a 18 m', p: [-12, -12, 8], side: 'l', show: () => THREE.MathUtils.smoothstep(state.xray, 0.92, 1) },
+  { t: 'Núcleo de muros', p: [0, 40, 0], side: 'l', show: () => THREE.MathUtils.smoothstep(xr(), 0.75, 0.95) },
+  { t: 'Disipadores en X', p: [12, 24, 8], side: 'r', show: () => THREE.MathUtils.smoothstep(xr(), 0.75, 0.95) },
+  { t: 'Pilotes a 18 m', p: [-12, -12, 8], side: 'l', show: () => THREE.MathUtils.smoothstep(xr(), 0.92, 1) },
   { t: 'Piso 14 · Tipo A', p: [-12.4, 73.2, 8], side: 'l', show: (t) => ramp(t, 8.2, 8.45, 8.75, 8.95) },
 ].map((n) => {
   const el = document.createElement('p');
@@ -469,7 +471,7 @@ function adapt(dt) {
 }
 
 function refreshUnits() {
-  const x = state.xray;
+  const x = xr();
   for (const u of UNITS) {
     let face = DARK, fo = 1 - 0.96 * x, eo = 0.8 - 0.66 * x;
     if (ex.on) {
@@ -496,7 +498,7 @@ function refreshUnits() {
 
 // En el pase de contornos se ocultan las mallas que están desvanecidas.
 function auxVisibility(on) {
-  const solidOk = !on || state.xray < 0.6;
+  const solidOk = !on || xr() < 0.6;
   for (const u of UNITS) u.mesh.visible = schMode && (!on || u.fo > 0.35);
   for (const sl of slabs) sl.visible = schMode && solidOk;
   podiumFace.visible = !detail.ready && solidOk;
@@ -524,7 +526,7 @@ function render() {
 
   const e = ex.on ? ex.explode : state.explode;
   // Capítulo de estructura: la torre se desarma de arriba hacia abajo y deja ver el esqueleto.
-  const peel = THREE.MathUtils.clamp((state.xray - 0.05) / 0.65, 0, 1);
+  const peel = THREE.MathUtils.clamp((xr() - 0.05) / 0.65, 0, 1);
   const bt = Math.min(state.build, 1 - peel) * (FLOORS + 4);
   floors.forEach((f, i) => {
     const l = THREE.MathUtils.clamp(bt - i, 0, 1), k = 1 - Math.pow(1 - l, 3);
@@ -539,11 +541,12 @@ function render() {
     crown.position.y = TOP + FLOORS * GAP * e + (1 - k) * 14;
   }
   {
-    const low = THREE.MathUtils.smoothstep(state.xray, 0.7, 1);          // al final baja hasta los pilotes
+    const low = THREE.MathUtils.smoothstep(xr(), 0.7, 1);          // al final baja hasta los pilotes
     structClip.constant = -((BASE + Math.min(bt, FLOORS) * FH) * (1 - low) - 26 * low);
+    tower.position.y = low * 21;                         // el esqueleto sube: los pilotes salen sobre la calle
     const podio = detail.solids[0];
     if (podio) {
-      const k = 1 - THREE.MathUtils.smoothstep(state.xray, 0.68, 0.9);
+      const k = 1 - THREE.MathUtils.smoothstep(xr(), 0.68, 0.9);
       podio.scale.y = Math.max(0.001, k);
       podio.visible = k > 0.01;
     }
@@ -599,7 +602,7 @@ function render() {
 
   {
     // Sello "arrastre para girar": junto a la base de la torre, solo mientras no la hayas girado.
-    const show = !spun && !free && state.intro < 0.05 && state.xray < 0.05 && state.explode < 0.05 && state.labels < 0.05;
+    const show = !spun && !free && state.intro < 0.05 && xr() < 0.05 && state.explode < 0.05 && state.labels < 0.05;
     spinBadge.classList.toggle('on', show);
     if (show) place(spinBadge, proj.set(-17, 9, 13).applyMatrix4(tower.matrixWorld).project(camera));
   }
@@ -644,12 +647,12 @@ tl
   .to(state, { labels: 1, duration: 0.4 }, 2.1)
   .to(state, { ...cam(-98, 112, 18, 0, 4, 0), duration: 0.8, ease: 'none' }, 2.5)
   .to(state, { labels: 0, duration: 0.3 }, 3.1)
-  // III — Estructura: la torre se abre hasta los pilotes (3.5 a 6)
+  // III — Estructura: la torre se abre y el esqueleto sube hasta mostrar los pilotes (3.5 a 6)
   .to(state, { shift: -0.2, duration: 1.0 }, 3.3)
   .to(state, { ...cam(46, 12, 54, 0, 24, 0), duration: 1.1 }, 3.3)
   .to(state, { xray: 1, duration: 1 }, 3.6)
   .to(state, { ...cam(40, 15, 58, 0, 22, 0), duration: 0.5, ease: 'none' }, 4.5)
-  .to(state, { ...cam(38, -1, 46, 0, -9, 0), duration: 0.8 }, 5.0)
+  .to(state, { ...cam(46, 17, 64, 0, 10, 0), duration: 0.8 }, 5.0)
   // IV — Apartamentos: los pisos se separan (6 a 8)
   .to(state, { shift: 0.2, duration: 0.9 }, 5.85)
   .to(state, { ...cam(12, 40, 100, 0, 32, 0), duration: 0.9 }, 5.85)
@@ -1173,7 +1176,8 @@ async function jumpTo(y) {
   await gsap.to(walk, { veil: 1, duration: 0.35, ease: 'power2.in' });
   lenis.scrollTo(y, { immediate: true, force: true });
   ScrollTrigger.update();
-  tl.scrollTrigger.getTween()?.progress(1);              // sin esperar el suavizado del scroll
+  tl.scrollTrigger.getTween()?.kill();                   // sin esperar el suavizado del scroll:
+  tl.progress(Math.min(1, y / scrollMax()));             // la línea de tiempo va de una vez a su punto
   await gsap.to(walk, { veil: 0, duration: 0.45, ease: 'power2.out', delay: 0.05 });
 }
 // El punto del viaje donde los pisos ya están separados
@@ -1248,7 +1252,8 @@ document.addEventListener('click', (ev) => {
 const floorTip = $('#floorTip');
 const litMat = new THREE.MeshLambertMaterial({ color: 0xd9a441, transparent: true });   // cálido: la tinta lo pinta de ocre
 const lit = new Set();
-const playable = () => !ex.on && !ex.exiting && !walk.on && !walk.busy && !document.body.classList.contains('locked');
+// En pantallas táctiles la torre no se gira ni se enciende: el dedo es para hacer scroll.
+const playable = () => !MOBILE && !ex.on && !ex.exiting && !walk.on && !walk.busy && !document.body.classList.contains('locked');
 let grab = null;
 
 function floorAt(ev) {

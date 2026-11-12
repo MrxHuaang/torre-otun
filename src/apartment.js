@@ -26,7 +26,7 @@ const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfb
 const GLASS = ['vidrio', 'esmerilado'];
 // Versión del arte del apartamento. Se sube con cada exportación de Blender: como los archivos conservan
 // el nombre, sin esto el navegador seguiría mostrando el modelo y las texturas anteriores desde su caché.
-const ART = '?v=8';
+const ART = '?v=9';
 
 const DETAIL_GLSL = /* glsl */ `
   varying vec3 vWp;
@@ -247,7 +247,7 @@ export function createApartment() {
     // real, a resolución de pantalla: de cerca se ven definidos, no lavados.
     // nombre del material en Blender → [tipo de superficie, color, segundo color]
     const SURF = {
-      pared: ['PAINT', 0xf1ece3], techo: ['PAINT', 0xfaf8f4], papel: ['PAINT', 0xf5f0e6], baldosa: ['PAINT', 0xc9c2b4],
+      pared: ['PAINT', 0xf5f2ec], ceramica: ['PAINT', 0xf6f4ef], techo: ['PAINT', 0xfaf8f4], papel: ['PAINT', 0xf5f0e6], baldosa: ['PAINT', 0xc9c2b4],
       piso: ['PLANKS', 0xb8935f, 0xd3b488], roble: ['WOOD', 0xa67f52, 0xc9a577], nogal: ['WOOD', 0x4f3524, 0x7a563a],
       piedra: ['STONE', 0xf2efe9, 0xb9b3a8], porcelanato: ['CONCRETE', 0xc2bcb1, 0xaba59a],
       lino: ['FABRIC', 0xd8cdbb], cojin: ['FABRIC', 0xe9e2d6], terracota: ['FABRIC', 0xb1603c], verde: ['FABRIC', 0x3b5045],
@@ -303,7 +303,7 @@ export function createApartment() {
           c *= 1.0 + (fbm(p * 140.0) - 0.5) * 0.22 * near;
         #endif
         #ifdef SURF_PAINT
-          c *= 1.0 + (fn(p * 110.0) * 0.6 + fn(p * 370.0) * 0.4 - 0.5) * 0.03 * near;
+          c *= 1.0 + (fn(p * 140.0) - 0.5) * 0.012 * near;                 // pintura lisa: apenas la textura del rodillo
         #endif
         return c;
       }`;
@@ -315,7 +315,7 @@ export function createApartment() {
       const m = new THREE.MeshBasicMaterial({ map: lightmaps[group], fog: false });
       const uniforms = { uC1: { value: new THREE.Color(c1) }, uC2: { value: new THREE.Color(c2 ?? c1) }, uGain: api.real.gain,
         // la luz se lee algo desenfocada (más en muros y techos, que son planos grandes): borra el moteado del horneado
-        uSoft: { value: group === 'arq' ? 1.6 : 0.8 } };
+        uSoft: { value: group === 'arq' ? 2.2 : 0.8 } };
       m.defines = { [`SURF_${kind}`]: '' };
       m.customProgramCacheKey = () => `superficie-${kind}`;
       m.onBeforeCompile = (sh) => {
@@ -325,7 +325,7 @@ export function createApartment() {
           .replace('#include <project_vertex>', '#include <project_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
         sh.fragmentShader = sh.fragmentShader
           .replace('#include <common>', `#include <common>\n${SURF_GLSL}`)
-          .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb = surface(vWp) * texture2D(map, vMapUv, uSoft).rgb * uGain;');   // material × luz horneada
+          .replace('#include <map_fragment>', '#include <map_fragment>\nvec3 lit = texture2D(map, vMapUv, uSoft).rgb;\n#ifdef SURF_PAINT\n  lit = mix(vec3(dot(lit, vec3(0.299, 0.587, 0.114))), lit, 0.4) * 1.1;   // muros y techos: la luz rebotada no los tiñe de marrón\n#endif\ndiffuseColor.rgb = surface(vWp) * lit * uGain;');   // material × luz horneada
       };
       // Los marcos y herrajes tocan el muro: van un pelo por delante para que no parpadeen
       if (group === 'mob') Object.assign(m, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });

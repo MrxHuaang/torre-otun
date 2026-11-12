@@ -739,8 +739,24 @@ casing('x', 7.0, 7.3, 8.2)
 box((0.04, 0.86, 2.06), (1.72, 8.84, 1.03), M['walnut'], 0.004)
 box((0.04, 0.86, 2.06), (2.68, 8.84, 1.03), M['walnut'], 0.004)
 box((0.86, 0.04, 2.06), (7.5, 7.32, 1.03), M['walnut'], 0.004)
-for loc, rot in (((1.67, 9.2, 1.02), RY), ((2.73, 9.2, 1.02), RY), ((7.86, 7.37, 1.02), RX)):
-    cyl(0.009, 0.009, 0.12, loc, M['brass'], rot, 16)
+def handle(p, axis, lever, sides=(-1, 1)):
+    """Manija de palanca. p: punto en el eje de la hoja; axis: 'x' o 'y' (normal de la hoja); lever: hacia dónde apunta (±1)."""
+    n = Vector((1, 0, 0)) if axis == 'x' else Vector((0, 1, 0))
+    along = Vector((0, 1, 0)) if axis == 'x' else Vector((1, 0, 0))
+    rot = RY if axis == 'x' else RX
+    for sd in sides:
+        base = Vector(p) + n * sd * 0.024
+        cyl(0.027, 0.027, 0.008, tuple(base), M['brass'], rot, 28)                          # roseta
+        cyl(0.008, 0.008, 0.05, tuple(base + n * sd * 0.027), M['brass'], rot, 16)          # cuello
+        size = (0.014, 0.13, 0.018) if axis == 'x' else (0.13, 0.014, 0.018)
+        box(size, tuple(base + n * sd * 0.05 + along * lever * 0.055), M['brass'], 0.004)   # palanca
+        cyl(0.012, 0.012, 0.004, tuple(base + Vector((0, 0, -0.09))), M['brass'], rot, 16)  # bocallave
+
+
+handle((1.72, 9.17, 1.02), 'x', -1)        # baño
+handle((2.68, 9.17, 1.02), 'x', -1)        # alcoba 2
+handle((7.83, 7.32, 1.02), 'y', -1)        # vestier
+handle((0.03, 6.16, 1.02), 'x', -1, (1,))  # entrada, por dentro
 
 # --- Pasillo
 box((5.6, 0.75, 0.01), (3.6, 7.75, 0.005), M['rug'], 0.003)
@@ -778,18 +794,27 @@ cyl(0.4, 0.4, 0.012, (0.02, 9.3, 1.62), M['mirror'], RY, 64)
 cyl(0.035, 0.03, 0.12, (0.2, 8.85, 0.95), M['ceramic'], seg=20, bv=0.004)
 for i in range(3):
     box((0.3, 0.2, 0.03), (0.28, 9.75, 0.905 + i * 0.031), M['towel'], 0.008)
-# Sanitario suspendido
-tb = cyl(0.19, 0.15, 0.36, (2.02, 9.35, 0.38), M['ceramic'], seg=64, bv=0.012)
-tb.scale = (1.4, 1, 1)
-box((0.16, 0.36, 0.36), (2.31, 9.35, 0.38), M['ceramic'], 0.015)
-tl = cyl(0.195, 0.195, 0.022, (2.02, 9.35, 0.575), M['ceramic'], seg=64, bv=0.006)
-tl.scale = (1.4, 1, 1)
-box((0.012, 0.24, 0.16), (2.394, 9.35, 1.05), M['steel'], 0.004)
+# Sanitario suspendido, sobre el muro derecho, entre el barrido de la puerta y la ducha
+TY = 9.86
+box((0.10, 0.38, 0.36), (2.34, TY, 0.41), M['ceramic'], 0.02)                       # anclaje al muro
+tb = cyl(0.185, 0.115, 0.3, (1.99, TY, 0.37), M['ceramic'], seg=64, bv=0.03)       # taza, más angosta abajo
+tb.scale = (1.5, 1, 1)
+ts = cyl(0.192, 0.192, 0.016, (1.99, TY, 0.528), M['ceramic'], seg=64, bv=0.006)   # aro
+ts.scale = (1.5, 1, 1)
+tl = cyl(0.188, 0.188, 0.014, (1.99, TY, 0.544), M['ceramic'], seg=64, bv=0.006)   # tapa
+tl.scale = (1.5, 1, 1)
+box((0.012, 0.24, 0.16), (2.394, TY, 1.08), M['steel'], 0.006)                      # pulsador de descarga
+for dy in (-0.055, 0.055):
+    cyl(0.04, 0.04, 0.006, (2.386, TY + dy, 1.08), M['steel'], RY, 28)
+cyl(0.008, 0.008, 0.14, (2.33, TY - 0.42, 0.72), M['brass'], RY, 12)                # portarrollos
+cyl(0.055, 0.055, 0.11, (2.3, TY - 0.42, 0.72), M['paper'], RX, 32)
+box((0.55, 0.85, 0.012), (0.85, 9.3, 0.018), M['towel'], 0.006)                     # tapete frente al tocador
+cyl(0.012, 0.012, 0.05, (0.9, 8.42, 1.7), M['brass'], RX, 12)                       # percha tras la puerta
 # Toallero
 cyl(0.008, 0.008, 0.6, (2.36, 8.85, 1.25), M['brass'], RX, 12)
 soft((0.05, 0.42, 0.6), (2.34, 8.85, 0.97), M['towel'])
-cyl(0.11, 0.08, 0.2, (2.2, 10.1, 0.11), M['pot'], seg=32, bv=0.006)
-foliage((2.2, 10.1, 0.55), 0.26, 34, M['leaf'], (0.26, 0.1), 1.2)
+cyl(0.11, 0.08, 0.2, (0.2, 10.12, 0.11), M['pot'], seg=32, bv=0.006)               # planta junto al tocador
+foliage((0.2, 10.12, 0.55), 0.2, 30, M['leaf'], (0.22, 0.09), 1.2)
 spots([(1.2, 9.3), (1.2, 10.6)])                                             # baño: sobre el eje, tocador y ducha
 warm((1.2, 9.4, 2.3), 44)
 warm((1.2, 10.9, 2.3), 22)
@@ -1107,7 +1132,7 @@ WAY = [
     ((1.10, 7.75), (1.3, 9.5, 1.2), None),
     ((1.25, 8.60), (0.3, 9.4, 1.15), ('Baño', 'Porcelanato gran formato, ducha en vidrio y sanitario suspendido.')),
     ((1.30, 9.20), (1.6, 11.2, 1.1), None),
-    ((1.10, 9.70), (2.1, 9.35, 0.5), None),                     # el sanitario, a la derecha de la puerta
+    ((1.00, 9.55), (2.1, 9.9, 0.45), None),                     # el sanitario, sobre el muro derecho
     ((1.30, 9.10), (1.3, 7.6, 1.4), None),                      # media vuelta y sale
     ((1.35, 7.90), (3.2, 7.8, 1.4), ('Pasillo', 'Siguiente puerta: alcoba 2.')),
     ((2.60, 7.75), (3.1, 9.5, 1.1), None),
@@ -1311,6 +1336,7 @@ elif MODE == 'real':
         joined[key].name = key
         print('GRUPO', key, len(lst), 'objetos', len(joined[key].data.polygons), 'caras', flush=True)
     joined['vidrio'].hide_render = True                    # el vidrio no aporta al horneado y mete ruido
+    joined['luz'].visible_shadow = False                   # lo encendido no proyecta sombra: evita manchas en el techo
     for m in bpy.data.materials:
         if m.node_tree and 'Principled BSDF' in m.node_tree.nodes:
             pb = m.node_tree.nodes['Principled BSDF']
