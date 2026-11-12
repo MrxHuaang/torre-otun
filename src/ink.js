@@ -1,7 +1,7 @@
 // Pase de tinta: convierte cualquier escena 3D en una lámina a pluma, en tiempo real.
 //  1) color de la escena              → tono (decide aguada y trama) y color plano
 //  2) normales + textura de profundidad → contornos
-//  3) cuadro final: papel, aguada, trama y contornos con pulso de mano (fijo: no tiembla al moverse)
+//  3) cuadro final: papel, aguada, trama y contornos suavizados, pegados a la geometría
 //  4) las líneas vectoriales (capa 1) se dibujan encima, respetando profundidad
 //
 // Solo usa texturas de 8 bits y una textura de profundidad estándar, así corre igual en
@@ -29,7 +29,7 @@ const inkMaterial = new THREE.ShaderMaterial({
   depthFunc: THREE.AlwaysDepth,
   uniforms: {
     tColor: { value: null }, tNormal: { value: null }, tDepth: { value: null },
-    uRes: { value: new THREE.Vector2(1, 1) }, uDpr: { value: 1 }, uTime: { value: 0 },
+    uRes: { value: new THREE.Vector2(1, 1) }, uDpr: { value: 1 },
     uNear: { value: 0.5 }, uFar: { value: 1000 }, uP22: { value: 0 }, uP32: { value: 0 },
     uFadeA: { value: 200 }, uFadeB: { value: 500 }, uExposure: { value: 1 },
     uPaper: { value: new THREE.Color() }, uInk: { value: new THREE.Color() }, uOchre: { value: new THREE.Color() },
@@ -38,7 +38,7 @@ const inkMaterial = new THREE.ShaderMaterial({
   fragmentShader: /* glsl */ `
     uniform sampler2D tColor, tNormal, tDepth;
     uniform vec2 uRes;
-    uniform float uDpr, uTime, uNear, uFar, uP22, uP32, uFadeA, uFadeB, uExposure;
+    uniform float uDpr, uNear, uFar, uP22, uP32, uFadeA, uFadeB, uExposure;
     uniform vec3 uPaper, uInk, uOchre;
     varying vec2 vUv;
 
@@ -59,22 +59,24 @@ const inkMaterial = new THREE.ShaderMaterial({
       return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
     }
 
-    void main() {
-      vec2 px = gl_FragCoord.xy / uDpr;
-      vec2 wob = (vec2(noise(px * 0.03 + uTime), noise(px * 0.03 + 31.7 - uTime)) - 0.5) * 1.2;
-      vec2 uv = vUv + wob * uDpr / uRes * 0.7;
-
-      // --- Contornos: laplaciano de profundidad inversa (los planos dan 0) + salto de normal
-      vec2 o = uDpr * 1.15 / uRes;
-      float d0 = dist(uv);
-      float i0 = 1.0 / d0;
+    // Contorno en un punto: laplaciano de profundidad inversa (los planos dan 0) + salto de normal.
+    float edgeAt(vec2 uv) {
+      vec2 o = uDpr * 1.1 / uRes;
+      float d0 = dist(uv), i0 = 1.0 / d0;
       float lap = abs(1.0 / dist(uv + o) + 1.0 / dist(uv - o) - 2.0 * i0)
                 + abs(1.0 / dist(uv + o * vec2(-1.0, 1.0)) + 1.0 / dist(uv + o * vec2(1.0, -1.0)) - 2.0 * i0);
       vec3 n1 = texture2D(tNormal, uv + o).rgb, n2 = texture2D(tNormal, uv - o).rgb;
       vec3 n3 = texture2D(tNormal, uv + o * vec2(-1.0, 1.0)).rgb, n4 = texture2D(tNormal, uv + o * vec2(1.0, -1.0)).rgb;
       float nd = length(n1 - n2) + length(n3 - n4);
-      float edge = max(smoothstep(0.02, 0.07, lap / i0), smoothstep(0.4, 0.9, nd));
-      edge *= 1.0 - smoothstep(uFadeA, uFadeB, d0);
+      return max(smoothstep(0.02, 0.07, lap / i0), smoothstep(0.4, 0.9, nd)) * (1.0 - smoothstep(uFadeA, uFadeB, d0));
+    }
+
+    void main() {
+      vec2 px = gl_FragCoord.xy / uDpr;
+      // El contorno va pegado a la geometría, sin temblor de pantalla: así no "nada" cuando la escena se mueve.
+      // Se calcula en dos puntos dentro del píxel y se promedia: el borde queda suavizado y no parpadea.
+      vec2 sub = 0.5 / uRes;
+      float edge = (edgeAt(vUv + sub * vec2(1.0, 0.45)) + edgeAt(vUv - sub * vec2(1.0, 0.45))) * 0.5;
 
       // --- Tono y color plano
       vec3 c = pow(clamp(texture2D(tColor, vUv).rgb * uExposure, 0.0, 1.0), vec3(1.0 / 2.2));
@@ -88,7 +90,7 @@ const inkMaterial = new THREE.ShaderMaterial({
 
       // Sombra en tres escalones limpios: aguada gris, trama ancha solo en lo oscuro, negro
       float wash = smoothstep(0.62, 0.54, th), hat = smoothstep(0.36, 0.22, th);
-      float ink = mix(1.0, hatch(px + wob, 0.7, 8.0, 0.05 + 0.15 * hat), step(0.001, hat));
+      float ink = mix(1.0, hatch(px, 0.7, 8.0, 0.05 + 0.15 * hat), step(0.001, hat));
       ink *= smoothstep(0.05, 0.11, th);
       ink *= 1.0 - edge;
       base *= 1.0 - 0.13 * wash;
