@@ -128,9 +128,9 @@ export function createIntro({ getProgress, onEnter, isReady = () => true, onWarm
 
   let p = 0, done = false;
   const tick = () => {
-    const real = Math.min(1, getProgress());
-    p = Math.min(1, p + Math.max(lite ? 0.009 : 0.005, (real - p) * 0.06));   // en móvil el emblema no se demora de más
-    if (p > real && real < 1) p = real;
+    // El avance es por tiempo, no por cuadros: en un teléfono lento hay pocos cuadros por segundo y, contando
+    // cuadros, el título tardaba varios segundos en aparecer.
+    p = Math.min(1, getProgress());
     draw.progress(p);
     rule.style.strokeDashoffset = 1 - p;
     if (p >= 1 && !done) {
@@ -159,13 +159,13 @@ export function createIntro({ getProgress, onEnter, isReady = () => true, onWarm
     const d = reduce ? 0.01 : 1;
     gsap.timeline()
       .to([rule, '.gate-word'], { opacity: 0, duration: 0.4 * d }, 0.2 * d)
-      .to('#gateEmblem', { scale: 0.4, yPercent: -98, duration: 1.1 * d, ease: 'power3.inOut' }, 0.25 * d)
+      .to('#gateEmblem', { scale: 0.4, yPercent: -98, duration: 0.9 * d, ease: 'power3.inOut' }, 0.1 * d)
       .to(['#gateBrush', '.gate-light'], { opacity: 1, duration: 1.6 * d }, 0.3 * d)
-      .to('.gate-title .pre', { opacity: 1, y: 0, duration: 0.7 * d, ease: 'power3.out' }, 0.9 * d)
-      .fromTo(title, { '--s': '0px' }, { '--s': '18px', duration: 1.5 * d, ease: 'power2.inOut' }, 0.9 * d)
+      .to('.gate-title .pre', { opacity: 1, y: 0, duration: 0.7 * d, ease: 'power3.out' }, 0.45 * d)
+      .fromTo(title, { '--s': '0px' }, { '--s': '18px', duration: 1.2 * d, ease: 'power2.inOut' }, 0.45 * d)
       .fromTo(chars, { yPercent: 46, opacity: 0 },
-        { yPercent: 0, opacity: 1, duration: 1.1 * d, ease: 'power3.out', stagger: 0.06 * d }, 0.9 * d)
-      .to('.gate-btn-wrap', { autoAlpha: 1, y: 0, duration: 0.6 * d, ease: 'back.out(1.8)', onStart: whenReady }, 2.3 * d);
+        { yPercent: 0, opacity: 1, duration: 0.9 * d, ease: 'power3.out', stagger: 0.045 * d }, 0.45 * d)
+      .to('.gate-btn-wrap', { autoAlpha: 1, y: 0, duration: 0.6 * d, ease: 'back.out(1.8)', onStart: whenReady }, 1.5 * d);
   }
 
   btn.addEventListener('click', () => {

@@ -19,7 +19,7 @@ if (!window.WebGL2RenderingContext) {
 } else {
   const t0 = performance.now();
   createIntro({
-    getProgress: () => Math.min(1, (performance.now() - t0) / 700),   // el emblema se dibuja por tiempo; Entrar espera a la escena
+    getProgress: () => Math.min(1, (performance.now() - t0) / 600),   // el emblema se dibuja por tiempo; Entrar espera a la escena
     isReady: () => bridge.ready(),
     onEnter: () => bridge.enter(),
     onWarm: () => bridge.warm(),
