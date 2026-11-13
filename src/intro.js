@@ -71,7 +71,7 @@ function tide() {
     <g filter="url(#goo)"><rect x="-100" y="130" width="1800" height="1200"/>${blobs.join('')}</g>`;
 }
 
-export function createIntro({ getProgress, onEnter }) {
+export function createIntro({ getProgress, onEnter, isReady = () => true, onWarm = () => {} }) {
   const gate = document.querySelector('#gate');
   gate.classList.toggle('lite', lite);
   const $ = (sel) => gate.querySelector(sel);
@@ -141,6 +141,20 @@ export function createIntro({ getProgress, onEnter }) {
   };
   gsap.ticker.add(tick);
 
+  // El botón Entrar aparece cuando la escena está lista: no se puede entrar a una torre que aún no existe.
+  function whenReady() {
+    const check = () => {
+      if (!isReady()) return;
+      gsap.ticker.remove(check);
+      btn.disabled = false;
+      btn.focus({ preventScroll: true });
+    };
+    gsap.ticker.add(check);
+    check();
+  }
+  // Con la primera señal de que alguien usa la página, se prepara el primer cuadro 3D (compilar sombreadores cuesta).
+  for (const type of ['pointerdown', 'pointermove', 'touchstart', 'keydown']) gate.addEventListener(type, onWarm, { once: true, passive: true });
+
   function reveal() {
     const d = reduce ? 0.01 : 1;
     gsap.timeline()
@@ -151,12 +165,12 @@ export function createIntro({ getProgress, onEnter }) {
       .fromTo(title, { '--s': '0px' }, { '--s': '18px', duration: 1.5 * d, ease: 'power2.inOut' }, 0.9 * d)
       .fromTo(chars, { yPercent: 46, opacity: 0 },
         { yPercent: 0, opacity: 1, duration: 1.1 * d, ease: 'power3.out', stagger: 0.06 * d }, 0.9 * d)
-      .to('.gate-btn-wrap', { autoAlpha: 1, y: 0, duration: 0.6 * d, ease: 'back.out(1.8)', onStart: () => { btn.disabled = false; } }, 2.3 * d)
-      .add(() => btn.focus({ preventScroll: true }));
+      .to('.gate-btn-wrap', { autoAlpha: 1, y: 0, duration: 0.6 * d, ease: 'back.out(1.8)', onStart: whenReady }, 2.3 * d);
   }
 
   btn.addEventListener('click', () => {
     btn.disabled = true;
+    onWarm();
     const d = reduce ? 0.01 : 1;
     if (!reduce && !lite) {
       gate.querySelectorAll('.bl').forEach((c) => gsap.to(c, {

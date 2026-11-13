@@ -13,11 +13,11 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500;600&display=swap" /></noscript>
-  <!-- La torre se pide desde ya, sin esperar a que el código la solicite -->
-  <link rel="preload" as="fetch" crossorigin href="/models/piso.glb" />
-  <link rel="preload" as="fetch" crossorigin href="/models/podio.glb" />
-  <link rel="preload" as="fetch" crossorigin href="/models/corona.glb" />
-  <link rel="preload" as="fetch" crossorigin href="/models/entorno.glb" />
+  <!-- La torre se baja en segundo plano y con prioridad baja: no compite con lo que pinta la portada -->
+  <link rel="prefetch" href="/models/piso.glb" />
+  <link rel="prefetch" href="/models/podio.glb" />
+  <link rel="prefetch" href="/models/corona.glb" />
+  <link rel="prefetch" href="/models/entorno.glb" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body class="locked">

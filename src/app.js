@@ -7,7 +7,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { createApartment } from './apartment.js';
 import { createMinimap, AREAS } from './extras.js';
-import { createIntro } from './intro.js';
+import { bridge } from './bridge.js';
 import { createInk } from './ink.js';
 import { FLOORS, SEPARACION, buildUnits, cop, planSVG, waLink } from './data.js';
 
@@ -516,7 +516,7 @@ function auxVisibility(on) {
 }
 
 const veil = $('#veil'), spinBadge = $('#spinBadge');
-let viewShift = 0.2, spun = false, last = performance.now(), gateFrames = 0;
+let viewShift = 0.2, spun = false, last = performance.now(), gateFrames = 0, live = false;   // live: la portada ya se está usando
 
 /* ------------------------------------------------------------------ */
 /* Cuadro a cuadro                                                     */
@@ -525,8 +525,8 @@ let viewShift = 0.2, spun = false, last = performance.now(), gateFrames = 0;
 function render() {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  // Con la portada encima no se ve la escena: se dibuja 1 de cada 30 cuadros, solo para dejar todo compilado.
-  if (state.intro > 0.999 && ++gateFrames % 30) return;
+  // Con la portada encima no se ve la escena: no se dibuja hasta que alguien usa la portada, y después 1 de cada 30 cuadros.
+  if (state.intro > 0.999 && (!live || ++gateFrames % 30)) return;
   adapt(dt);
   mouse.sx += (mouse.x - mouse.sx) * 0.05;
   mouse.sy += (mouse.y - mouse.sy) * 0.05;
@@ -724,28 +724,26 @@ $$('[data-scroll]').forEach((a) =>
 /* Portada                                                             */
 /* ------------------------------------------------------------------ */
 
-// El emblema se dibuja con la carga real; al entrar, la torre se arma.
+// La portada ya está en pantalla (la pinta main.js antes de cargar esta escena); aquí se conecta con ella.
 {
   const t0 = performance.now();
-  createIntro({
-    getProgress: () => (performance.now() - t0 > 7000
-      ? 1                                                        // si algo no carga, no se queda pegada
-      : 0.15 + (detail.ready ? 0.85 : 0)),
-    onEnter: () => {
-      gsap.to(state, { intro: 0, duration: 3.4, ease: 'power3.out' });
-      gsap.to(state, { build: 1, duration: 3.0, ease: 'power1.inOut', delay: 0.15 });
-      gsap.delayedCall(1.2, () => {
-        document.body.classList.remove('locked');
-        document.body.classList.add('ready');
-        lenis.start();
-        $$('.block').forEach((el) => io.observe(el));
-      });
-      // El apartamento se pide ya dentro, y su versión realista un poco después: al abrir el recorrido están listos.
-      gsap.delayedCall(1.5, apt.start);
-      if (deep) gsap.delayedCall(1.7, openDeepLink);
-      gsap.delayedCall(3.5, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
-    },
-  });
+  bridge.ready = () => detail.ready || performance.now() - t0 > 9000;      // si algo no carga, no se queda pegada
+  bridge.warm = () => { live = true; };
+  bridge.enter = () => {
+    live = true;
+    gsap.to(state, { intro: 0, duration: 3.4, ease: 'power3.out' });
+    gsap.to(state, { build: 1, duration: 3.0, ease: 'power1.inOut', delay: 0.15 });
+    gsap.delayedCall(1.2, () => {
+      document.body.classList.remove('locked');
+      document.body.classList.add('ready');
+      lenis.start();
+      $$('.block').forEach((el) => io.observe(el));
+    });
+    // El apartamento se pide ya dentro, y su versión realista un poco después: al abrir el recorrido están listos.
+    gsap.delayedCall(1.5, apt.start);
+    if (deep) gsap.delayedCall(1.7, openDeepLink);
+    gsap.delayedCall(3.5, () => apt.loadReal(renderer, MOBILE).catch(() => {}));
+  };
 }
 
 /* ------------------------------------------------------------------ */
