@@ -24,8 +24,10 @@ if (!window.WebGL2RenderingContext) {
     onEnter: () => bridge.enter(),
     onWarm: () => bridge.warm(),
   });
+  // La escena pesa 200 KB y arrastra modelos: se pide solo cuando el título de la portada ya está en pantalla,
+  // para que no compita con el primer pintado. Después, cuando el navegador está libre.
   const idle = (f) => ('requestIdleCallback' in window ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 400));
-  const start = () => idle(() => import('./app.js').catch(fallback));
+  const start = () => setTimeout(() => idle(() => import('./app.js').catch(fallback)), Math.max(0, 2200 - (performance.now() - t0)));
   setTimeout(() => { if (!bridge.ready()) fallback(); }, 25000);   // si la escena no llega, la página no se queda detrás de la portada
   if (document.readyState === 'complete') start();
   else addEventListener('load', start, { once: true });
