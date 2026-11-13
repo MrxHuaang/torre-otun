@@ -453,17 +453,19 @@ def wall(axis, at, a0, a1, th=0.1, openings=(), mat=None, h=2.8):
 
 
 def casing(axis, at, o0, o1, th=0.14, top=2.1):
+    """Marco de puerta. Los laterales llegan justo hasta el travesaño y este es 4 mm más grueso: ninguna cara de
+    un listón queda en el mismo plano que otra que lo solape (eso hacía parpadear las esquinas en tinta)."""
     e = 0.004   # el marco entra 4 mm al vano: tapa el canto del muro en vez de compartir plano con él
     o0, o1, top = o0 + e, o1 - e, top - e
     for sp in (o0 - 0.03, o1 + 0.03):
         if axis == 'x':
-            box((th, 0.06, top + 0.03), (at, sp, (top + 0.03) / 2), M['ceil'], 0.003)
+            box((th, 0.06, top), (at, sp, top / 2), M['ceil'], 0)
         else:
-            box((0.06, th, top + 0.03), (sp, at, (top + 0.03) / 2), M['ceil'], 0.003)
+            box((0.06, th, top), (sp, at, top / 2), M['ceil'], 0)
     if axis == 'x':
-        box((th, o1 - o0 + 0.12, 0.06), (at, (o0 + o1) / 2, top + 0.03), M['ceil'], 0.003)
+        box((th + 0.004, o1 - o0 + 0.12, 0.06), (at, (o0 + o1) / 2, top + 0.03), M['ceil'], 0)
     else:
-        box((o1 - o0 + 0.12, th, 0.06), ((o0 + o1) / 2, at, top + 0.03), M['ceil'], 0.003)
+        box((o1 - o0 + 0.12, th + 0.004, 0.06), ((o0 + o1) / 2, at, top + 0.03), M['ceil'], 0)
 
 
 def pane(size, loc, mat=None):

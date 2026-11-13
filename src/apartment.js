@@ -26,7 +26,7 @@ const GLOW = { bombillo: 0xfff1d6, led: 0xfff1d6, spot: 0xfffaf0, pantalla: 0xfb
 const GLASS = ['vidrio', 'esmerilado'];
 // Versión del arte del apartamento. Se sube con cada exportación de Blender: como los archivos conservan
 // el nombre, sin esto el navegador seguiría mostrando el modelo y las texturas anteriores desde su caché.
-const ART = '?v=11';
+const ART = '?v=12';
 
 const DETAIL_GLSL = /* glsl */ `
   varying vec3 vWp;
